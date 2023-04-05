@@ -1,0 +1,30 @@
+---
+title: "STAT 151A Final Project"
+author: "Benjamin Lee, Stephanie Trinh, Zhi Long Yeo"
+date: "2023-04-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Model Question
+
+**TODO: Questions to answer**
+
+- What is the research question that you plan to answer via linear modeling? What practical decisions or real-world insight could result from your project?
+- Explain whether the primary focus of your project is prediction accuracy, causal inference, or observational/exploratory.
+
+# Data Overview
+
+**TODO: Questions to answer**
+
+- Roughly, what is contained in the data? How were your data generated? What is a unit of observation? Are observations independent?
+- If you did not use one of the 3 given data sets, please provide a link to the data source.
+- Is the sample narrowly defined or is do you think modeling on this data can be generalized to a larger population?
+- What do you anticipate to be a challenge for this data/analysis?
+- Name some features or additional data that is unavailable but you think would improve modeling of your question, and discuss why.
+
+# EDA
+**TODO: 3 visualizations**
