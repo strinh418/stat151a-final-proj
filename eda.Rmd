@@ -6,6 +6,13 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
+library(knitr)
+library(tidyverse)
+library(dbplyr)
+library(caret)
+library(pracma)
+library(gridExtra)
+
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -13,18 +20,69 @@ knitr::opts_chunk$set(echo = TRUE)
 
 **TODO: Questions to answer**
 
-- What is the research question that you plan to answer via linear modeling? What practical decisions or real-world insight could result from your project?
-- Explain whether the primary focus of your project is prediction accuracy, causal inference, or observational/exploratory.
+-   What is the research question that you plan to answer via linear modeling? What practical decisions or real-world insight could result from your project?
+-   Explain whether the primary focus of your project is prediction accuracy, causal inference, or observational/exploratory.
 
 # Data Overview
 
 **TODO: Questions to answer**
 
-- Roughly, what is contained in the data? How were your data generated? What is a unit of observation? Are observations independent?
-- If you did not use one of the 3 given data sets, please provide a link to the data source.
-- Is the sample narrowly defined or is do you think modeling on this data can be generalized to a larger population?
-- What do you anticipate to be a challenge for this data/analysis?
-- Name some features or additional data that is unavailable but you think would improve modeling of your question, and discuss why.
+-   Roughly, what is contained in the data? How were your data generated? What is a unit of observation? Are observations independent?
+-   If you did not use one of the 3 given data sets, please provide a link to the data source.
+-   Is the sample narrowly defined or is do you think modeling on this data can be generalized to a larger population?
+-   What do you anticipate to be a challenge for this data/analysis?
+-   Name some features or additional data that is unavailable but you think would improve modeling of your question, and discuss why.
 
 # EDA
-**TODO: 3 visualizations**
+
+```{r, fig.width=36, fig.height=24, fig.align='center'}
+library(ggpubr)
+
+df = read.csv('combined_dataset_cleaned.csv')
+selected_hr = 18
+is_weekend = 0
+colors = data.frame(
+  season = c('winter', 'spring', 'summer', 'fall'),
+  color=c('blue', 'green', 'red', 'orange')
+)
+
+select_by_location_hour_weekend = function(df, location, hour, weekend) {
+  output = df[(df$location == location) & (df$hr == hour) & (df$is_weekend == weekend), ]
+  output$cnt = output$cnt / as.numeric(max(output$cnt))
+  return(output)
+}
+
+plot_by_location_hour_weekend = function(df, location, hour, weekend) {
+  restricted_df = select_by_location_hour_weekend(df, location, hour, weekend)
+  output = ggplot(restricted_df, aes(x=temp, y=cnt, color=season)) +
+    geom_point() + 
+    theme(legend.position='bottom', legend.direction = 'horizontal')
+  return(output)
+}
+
+london1 = select_by_location_hour_weekend(df, "london", 8, 0)
+london2 = select_by_location_hour_weekend(df, "london", 12, 0)
+london3 = select_by_location_hour_weekend(df, "london", 18, 0)
+
+dc1 = select_by_location_hour_weekend(df, "washington_dc", 8, 0)
+dc2 = select_by_location_hour_weekend(df, "washington_dc", 12, 0)
+dc3 = select_by_location_hour_weekend(df, "washington_dc", 18, 0)
+
+seoul1 = select_by_location_hour_weekend(df, "seoul", 8, 0)
+seoul2 = select_by_location_hour_weekend(df, "seoul", 12, 0)
+seoul3 = select_by_location_hour_weekend(df, "seoul", 18, 0)
+
+joined = rbind(london1, london2, london3,
+               dc1, dc2, dc3,
+               seoul1, seoul2, seoul3)
+joined$hr = paste(as.character(joined$hr), rep("hr", length(joined)))
+
+ggplot(data=joined, mapping=aes(temp, cnt, color=season)) + 
+  geom_point() + 
+  facet_wrap(~ location + hr) + 
+  theme(text = element_text(size=40))
+```
+
+We see that in Seoul, during different seasons, there are different trends of count against temp. In winter we observe that the gradient of count with respect to temp is small and positive, in spring and fall, it is moderately positive and strongly negative in summer. This trend is not seen in London and much less obvious in Washington D.C. This gives us justification to use the interaction term $temp*location*season$ and all other interaction terms implied by the principle of marginality with the inclusion of this term.
+
+We posit that this is because the annual temperature ranges in London and Washington DC is similar to that of Seoul's temperature range during Spring/Fall, because we see that the gradient of count against temp seems to be negative when temperature approaches the typical summer temperature of Seoul. However, it is difficult for us to determine a proper temperature cutoff to determine the 3 specific temperature regions, hence we think that using the season as a proxy for these different temperature categories is reasonable.
