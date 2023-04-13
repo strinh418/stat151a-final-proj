@@ -34,11 +34,13 @@ knitr::opts_chunk$set(echo = TRUE)
 -   Name some features or additional data that is unavailable but you think would improve modeling of your question, and discuss why.
 
 # EDA
+``` {r}
+df = read.csv('combined_dataset_cleaned.csv', colClasses= c("integer", "character", "logical", "character", "numeric", "numeric", "numeric", "integer", "integer", "integer", "integer", "integer", "character", "integer", "logical", "logical"))
+```
 
 ```{r, fig.width=36, fig.height=24, fig.align='center'}
 library(ggpubr)
 
-df = read.csv('combined_dataset_cleaned.csv')
 selected_hr = 18
 is_weekend = 0
 colors = data.frame(
@@ -46,31 +48,31 @@ colors = data.frame(
   color=c('blue', 'green', 'red', 'orange')
 )
 
-select_by_location_hour_weekend = function(df, location, hour, weekend) {
-  output = df[(df$location == location) & (df$hr == hour) & (df$is_weekend == weekend), ]
+select_by_location_hour_workday = function(df, location, hour, workday) {
+  output = df[(df$location == location) & (df$hr == hour) & (df$is_workday == workday), ]
   output$cnt = output$cnt / as.numeric(max(output$cnt))
   return(output)
 }
 
-plot_by_location_hour_weekend = function(df, location, hour, weekend) {
-  restricted_df = select_by_location_hour_weekend(df, location, hour, weekend)
+plot_by_location_hour_workday = function(df, location, hour, workday) {
+  restricted_df = select_by_location_hour_workday(df, location, hour, workday)
   output = ggplot(restricted_df, aes(x=temp, y=cnt, color=season)) +
     geom_point() + 
     theme(legend.position='bottom', legend.direction = 'horizontal')
   return(output)
 }
 
-london1 = select_by_location_hour_weekend(df, "london", 8, 0)
-london2 = select_by_location_hour_weekend(df, "london", 12, 0)
-london3 = select_by_location_hour_weekend(df, "london", 18, 0)
+london1 = select_by_location_hour_workday(df, "london", 8, TRUE)
+london2 = select_by_location_hour_workday(df, "london", 12, TRUE)
+london3 = select_by_location_hour_workday(df, "london", 18, TRUE)
 
-dc1 = select_by_location_hour_weekend(df, "washington_dc", 8, 0)
-dc2 = select_by_location_hour_weekend(df, "washington_dc", 12, 0)
-dc3 = select_by_location_hour_weekend(df, "washington_dc", 18, 0)
+dc1 = select_by_location_hour_workday(df, "washington_dc", 8, TRUE)
+dc2 = select_by_location_hour_workday(df, "washington_dc", 12, TRUE)
+dc3 = select_by_location_hour_workday(df, "washington_dc", 18, TRUE)
 
-seoul1 = select_by_location_hour_weekend(df, "seoul", 8, 0)
-seoul2 = select_by_location_hour_weekend(df, "seoul", 12, 0)
-seoul3 = select_by_location_hour_weekend(df, "seoul", 18, 0)
+seoul1 = select_by_location_hour_workday(df, "seoul", 8, TRUE)
+seoul2 = select_by_location_hour_workday(df, "seoul", 12, TRUE)
+seoul3 = select_by_location_hour_workday(df, "seoul", 18, TRUE)
 
 joined = rbind(london1, london2, london3,
                dc1, dc2, dc3,
