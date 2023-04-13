@@ -95,14 +95,72 @@ We see that in Seoul, during different seasons, there are different trends of co
 
 We posit that this is because the annual temperature ranges in London and Washington DC is similar to that of Seoul's temperature range during Spring/Fall, because we see that the gradient of count against temp seems to be negative when temperature approaches the typical summer temperature of Seoul. However, it is difficult for us to determine a proper temperature cutoff to determine the 3 specific temperature regions, hence we think that using the season as a proxy for these different temperature categories is reasonable.
 
+``` {r, fig.width=36, fig.height=24, fig.align='center'}
+location_labels <- c("seoul"="Seoul", "london"="London", "washington_dc"="Washington D.C.")
+
+select_by_location_hour = function(df, location, hour) {
+  output = df[(df$location == location) & (df$hr == hour), ]
+  output$cnt = output$cnt / as.numeric(max(output$cnt))
+  output$location = location_labels[output$location]
+  return(output)
+}
+
+hour_label = function(hr_vec) {
+  labels = c()
+  for (hr in hr_vec) {
+    if (hr == 0) {
+      label = "12 AM"
+    } else if (hr < 12) {
+      label = paste0(hr, " AM")
+    } else if (hr == 12) {
+      label = "12 PM"
+    } else {
+      label = paste0(hr-12, " PM")
+    }
+    labels <- rbind(labels, label)
+
+  }
+  return(labels)
+}
+
+eda2_london1 = select_by_location_hour(df, "london", 8)
+eda2_london2 = select_by_location_hour(df, "london", 12)
+eda2_london3 = select_by_location_hour(df, "london", 18)
+
+eda2_dc1 = select_by_location_hour(df, "washington_dc", 8)
+eda2_dc2 = select_by_location_hour(df, "washington_dc", 12)
+eda2_dc3 = select_by_location_hour(df, "washington_dc", 18)
+
+eda2_seoul1 = select_by_location_hour(df, "seoul", 8)
+eda2_seoul2 = select_by_location_hour(df, "seoul", 12)
+eda2_seoul3 = select_by_location_hour(df, "seoul", 18)
+
+joined2 = rbind(eda2_london1, eda2_london2, eda2_london3,
+               eda2_dc1, eda2_dc2, eda2_dc3,
+               eda2_seoul1, eda2_seoul2, eda2_seoul3)
+joined2$hr = hour_label(joined2$hr)
+
+ggplot(data=joined2, mapping=aes(temp, cnt, color=is_workday)) +
+  geom_point(size=5) +
+  facet_wrap(~ location + factor(hr, levels=c("8 AM", "12 PM", "6 PM"))) +
+  xlab("Temperature (in Celcius)") +
+  ylab("Rental Bike Count") +
+  ggtitle("Number of Bike Rentals For Workdays vs. Non-Workdays", subtitle = "Bike counts are normalized by dividing by the max rental count based on location.") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        axis.title = element_text(face="bold"),
+        text = element_text(size=80),
+        panel.spacing.x = unit(25, "mm"))
+```
+
 ```{r boxplots of count against month}
 boxplots <- ggplot(df, aes(x = month, y = cnt))
 
-boxplots <- boxplots + geom_boxplot(aes(x=month, y=cnt, group=month), fill = "gray", color = "black", alpha = 0.8, outlier.color = "black", outlier.size = 0.7) + xlab("Month") + ylab("Count") + ggtitle("Boxplots of Count against Month by Location") + facet_wrap(~location, scales = "free") + scale_x_continuous(breaks=1:12)
+boxplots <- boxplots + geom_boxplot(aes(x=month, y=cnt, group=month), fill = "#00BFC4", color = "black", alpha = 0.8, outlier.color = "#F8766D", outlier.size = 0.7) + xlab("Month") + ylab("Count") + ggtitle("Boxplots of Count against Month by Location") + facet_wrap(~location, scales = "free") + scale_x_continuous(breaks=1:12)
 
 boxplots_log <- ggplot(df, aes(x = month, y = log(cnt)))
 
-boxplots_log <- boxplots_log + geom_boxplot(aes(x=month, y=log(cnt), group=month), fill = "gray", color = "black", alpha = 0.8, outlier.color = "black", outlier.size = 0.7) + xlab("Month") + ylab("log(Count)") + ggtitle("Boxplots of log(Count) against Month by Location") + facet_wrap(~location, scales = "free") + scale_x_continuous(breaks=1:12)
+boxplots_log <- boxplots_log + geom_boxplot(aes(x=month, y=log(cnt), group=month), fill = "#00BFC4", color = "black", alpha = 0.8, outlier.color = "#F8766D", outlier.size = 0.7) + xlab("Month") + ylab("log(Count)") + ggtitle("Boxplots of log(Count) against Month by Location") + facet_wrap(~location, scales = "free") + scale_x_continuous(breaks=1:12)
 boxplots
 
 grid.arrange(boxplots, boxplots_log, nrow=2)
