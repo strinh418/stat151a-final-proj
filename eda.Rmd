@@ -12,32 +12,38 @@ library(dbplyr)
 library(caret)
 library(pracma)
 library(gridExtra)
+library(reshape2)
+library(RColorBrewer)
 
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
 ```
 
 # Model Question
 
 ## Overview
+
 We plan to analyze various datasets related to bike sharing data from different geographical locations (e.g. Seoul, Washington D.C., London etc) which contains information about the number of bikes rented on different days, along with weather conditions (temperature, humidity, etc) and miscellaneous information about the day these bikes were rented (weekends, holidays, etc).
 
 ## Research question
+
 The question we wish to answer using these datasets, is what various variables/factors can be used to predict the number of bikes that will be rented on a given day. We will also be testing the following hypothesis.
 
 We also want to test the following hypotheses:
 
-- B_temperature is different in different locations (We expect people in different areas to have different cold/heat tolerance)
-- B_isHoliday in different locations
-- Which is the most significant B? (We expect it to be B_temp, but expect B_windspeed to be significant too)
+-   B_temperature is different in different locations (We expect people in different areas to have different cold/heat tolerance)
+-   B_isHoliday in different locations
+-   Which is the most significant B? (We expect it to be B_temp, but expect B_windspeed to be significant too)
 
 ## Practical Decisions
+
 Our findings could help inform bike sharing companies into making better economic decisions.
 
-i. Predictive maintenance: Our findings could help bike sharing companies predict the expected mileage (and thus wear-and-tear) on the bikes ahead of time. This could help them better schedule bike maintenance/replacements.
+i.  Predictive maintenance: Our findings could help bike sharing companies predict the expected mileage (and thus wear-and-tear) on the bikes ahead of time. This could help them better schedule bike maintenance/replacements.
 
 ii. Marketing decisions: A better understanding of the factors that affect number of users can provide valuable insights into marketing decisions, such as discounts and promotions. Companies can offer discounts during off-peak times or inclement weather to encourage greater usage.
 
 ## Primary focus
+
 Our primary focus is prediction accuracy. We will not be focusing on causal inference as we would have to control for confounding variables, and these confounding variables may not be captured in our datasets.
 
 \newpage
@@ -46,11 +52,11 @@ Our primary focus is prediction accuracy. We will not be focusing on causal infe
 
 We are using the following datasets for data exploration and modeling:
 
-- [Bike Sharing in Washington D.C. Dataset (2011-2012)](https://www.kaggle.com/datasets/marklvl/bike-sharing-dataset)
-- [Seoul Bike Sharing Demand Data Set (2017-2018)](https://archive.ics.uci.edu/ml/datasets/Seoul+Bike+Sharing+Demand#)
-- [London bike sharing dataset (2015-2017)](https://www.kaggle.com/datasets/hmavrodiev/london-bike-sharing-dataset)
+-   [Bike Sharing in Washington D.C. Dataset (2011-2012)](https://www.kaggle.com/datasets/marklvl/bike-sharing-dataset)
+-   [Seoul Bike Sharing Demand Data Set (2017-2018)](https://archive.ics.uci.edu/ml/datasets/Seoul+Bike+Sharing+Demand#)
+-   [London bike sharing dataset (2015-2017)](https://www.kaggle.com/datasets/hmavrodiev/london-bike-sharing-dataset)
 
-Each dataset contains the hourly count of rental bikes on each specific date, with additional information on weather and holiday schedules. Each observation corresponds to an hour of the day, resulting in observations being dependent on each other. Working with time series data will be one of the challenges of working with these datasets for linear modeling, but we plan to lessen the effects of dependence between observations by treating “hour” as a categorical variable.
+Each dataset contains the hourly count of rental bikes on each specific date, with additional information on weather and holiday schedules. Each observation corresponds to an hour of the day, resulting in observations being dependent on each other. Working with time series data will be one of the challenges of working with these datasets for linear modeling, but we plan to lessen the effects of dependence between observations by treating "hour" as a categorical variable.
 
 It would probably be difficult for modeling on this data to be generalizable to a larger population and be applicable to other locations since the popularity of bike sharing and general trends varies across locations in a way that cannot be captured within the model. Working with these datasets will likely only provide us with a model appropriate specifically for Washington D.C, Seoul, and London.
 
@@ -61,26 +67,17 @@ Regarding additional features and data that we believe would be useful for analy
 # EDA
 
 ## Data Cleaning
+
 Before creating the following visualizations, we performed some preprocessing steps to clean up the data. Since we planned to use three different datasets for bike rentals in three locations, we first selected only columns in each dataset that was readily available in all other datasets and derived certain columns that weren't explicitly available (e.g. extracting hour data and workday data from timestamps). Some datasets required additional cleaning (e.g. un-normalizing temperature data in the Washington D.C. dataset, ensuring that all datasets used the same units of measurement for windspeed and defined the same months per season). We then standardized how categorical variables were encoded using logicals to make it easier in the future for modeling to treat those columns as categorical data. After ensuring all the datasets followed the same format, we merged the datasets together.
 
-## Visualization 1
-``` {r}
+## Distribution and Heteroscedasticity of Data
+
+```{r}
 df = read.csv('combined_dataset_cleaned.csv', colClasses= c("integer", "character", "logical", "character", "numeric", "numeric", "numeric", "integer", "integer", "integer", "integer", "integer", "character", "integer", "logical", "logical"))
 
 london_df = df[df$location == "london", ]
 washington_df = df[df$location == "washington_dc", ]
 seoul_df = df[df$location == "seoul", ]
-```
-
-```{r, fig.width=36, fig.height=24, fig.align='center'}
-library(ggpubr)
-
-selected_hr = 18
-is_weekend = 0
-colors = data.frame(
-  season = c('winter', 'spring', 'summer', 'fall'),
-  color=c('blue', 'green', 'red', 'orange')
-)
 
 select_by_location_hour_workday = function(df, location, hour, workday) {
   output = df[(df$location == location) & (df$hr == hour) & (df$is_workday == workday), ]
@@ -95,6 +92,109 @@ plot_by_location_hour_workday = function(df, location, hour, workday) {
     theme(legend.position='bottom', legend.direction = 'horizontal')
   return(output)
 }
+```
+
+```{r, fig.width=36, fig.height=24, fig.align='center'}
+boxplots <- ggplot(df, aes(x = month, y = cnt))
+
+boxplots <- boxplots + 
+  geom_boxplot(
+    aes(x=month, y=cnt, group=month), 
+    fill = "#00BFC4", 
+    color = "black", 
+    alpha = 0.8, 
+    outlier.color = "#F8766D", 
+    outlier.size = 0.7
+    ) + 
+  xlab("Month") + 
+  ylab("Count") + 
+  theme(plot.title = element_text(hjust = 0.5, face="bold"),
+      plot.subtitle = element_text(hjust = 0.5),
+      axis.title = element_text(face="bold"),
+      text = element_text(size=50),
+      panel.spacing.x = unit(25, "mm")) +
+  facet_wrap(~location, scales = "free") + 
+  scale_x_continuous(breaks=1:12)
+
+boxplots_log <- ggplot(df, aes(x = month, y = log(cnt)))
+
+boxplots_log <- boxplots_log + 
+  geom_boxplot(
+    aes(x=month, y=log(cnt), group=month), 
+    fill = "#00BFC4", 
+    color = "black", 
+    alpha = 0.8, 
+    outlier.color = "#F8766D", 
+    outlier.size = 0.7
+    ) + 
+  xlab("Month") + 
+  ylab("log(Count)") + 
+  facet_wrap(~location, scales = "free") + 
+  theme(plot.title = element_text(hjust = 0.5, face="bold"),
+      plot.subtitle = element_text(hjust = 0.5),
+      axis.title = element_text(face="bold"),
+      text = element_text(size=50),
+      panel.spacing.x = unit(25, "mm")) +
+  scale_x_continuous(breaks=1:12)
+
+grid.arrange(boxplots, boxplots_log, nrow=2)
+```
+
+From the top row of boxplots we observe that the average count and, in particular, variance of bike users count differs across the months. The non-uniform variance violates the canonical assumption of homoscedasticity. Furthermore, we also observe that the distribution of count in each month does not appear to be normal, as evident from the presence of numerous outliers at high values of count. In the second row, we make an attempt to normalize the data using a log-transformation in an attempt to pull in high values of count, but our resulting boxplots still show that the distribution is not normal.
+
+These observations motivate treating the data as count data and working from a Poisson GLM framework. A Poisson framework would, in particular, address the non-uniform variance of our data. We observe that variance of count in each month increases as mean increases, which is characteristic of Poisson processes.
+
+## Correlation Matrix of variables
+
+```{r}
+heatmap_theme = "YlOrRd"
+
+london1 = select_by_location_hour_workday(df, "london", 8, TRUE)
+london2 = select_by_location_hour_workday(df, "london", 12, TRUE)
+london3 = select_by_location_hour_workday(df, "london", 18, TRUE)
+
+dc1 = select_by_location_hour_workday(df, "washington_dc", 8, TRUE)
+dc2 = select_by_location_hour_workday(df, "washington_dc", 12, TRUE)
+dc3 = select_by_location_hour_workday(df, "washington_dc", 18, TRUE)
+
+seoul1 = select_by_location_hour_workday(df, "seoul", 8, TRUE)
+seoul2 = select_by_location_hour_workday(df, "seoul", 12, TRUE)
+seoul3 = select_by_location_hour_workday(df, "seoul", 18, TRUE)
+
+select_continous_variables = function(df) {
+  return(select(df, cnt, temp, hum, windspeed))
+}
+
+heatmap_func <- function(df) {
+  df = data.frame(df)
+  ggplot(df, aes(x, y, fill = z)) +
+    geom_tile() +
+    scale_fill_gradientn(colours = brewer.pal(n=7, name = heatmap_theme)) + 
+    theme(axis.text = element_blank(), axis.title = element_blank())
+}
+
+london_cor1 = cor(select_continous_variables(london1))
+london_cor2 = cor(select_continous_variables(london2))
+london_cor3 = cor(select_continous_variables(london3))
+
+dc_cor1 = cor(select_continous_variables(dc1))
+dc_cor2 = cor(select_continous_variables(dc2))
+dc_cor3 = cor(select_continous_variables(dc3))
+
+seoul_cor1 = cor(select_continous_variables(seoul1))
+seoul_cor2 = cor(select_continous_variables(seoul2))
+seoul_cor3 = cor(select_continous_variables(seoul3))
+```
+
+(TODO)
+
+## Bike Rental Trends Given Season and Location
+
+```{r, fig.width=36, fig.height=24, fig.align='center'}
+library(ggpubr)
+
+selected_hr = 18
+is_weekend = 0
 
 london1 = select_by_location_hour_workday(df, "london", 8, TRUE)
 london2 = select_by_location_hour_workday(df, "london", 12, TRUE)
@@ -113,20 +213,28 @@ joined = rbind(london1, london2, london3,
                seoul1, seoul2, seoul3)
 joined$hr = paste(as.character(joined$hr), rep("hr", length(joined)))
 
+title = "Number of Bike rentals conditioned on season, time and location"
+subtitle = "Bike counts are normalized by the max rental count based on location."
 ggplot(data=joined, mapping=aes(temp, cnt, color=season)) + 
   geom_point() + 
   facet_wrap(~ location + hr) + 
-  theme(text = element_text(size=40))
+  ggtitle(title, subtitle = subtitle) +
+  xlab("Temperature (in Celcius)") +
+  ylab("Normalized Rental Bike Count") +
+  theme(plot.title = element_text(hjust = 0.5, face="bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        axis.title = element_text(face="bold"),
+        text = element_text(size=50),
+        panel.spacing.x = unit(25, "mm"))
 ```
 
-$cnt$ is the number of registered users normalized by the maximum of each location.
-
-We see that in Seoul, during different seasons, there are different trends of count against temp. In winter we observe that the gradient of count with respect to temp is small and positive, in spring and fall, it is moderately positive and strongly negative in summer. This trend is not seen in London and much less obvious in Washington D.C. This gives us justification to use the interaction term $temp*location*season$ and all other interaction terms implied by the principle of marginality with the inclusion of this term.
+We see that in Seoul, during different seasons, there are different trends of count against temp. In winter we observe that the gradient of count with respect to temp is small and positive, in spring and fall, it is moderately positive and strongly negative in summer. This trend is not seen in London and much less obvious in Washington D.C. This gives us motivation to use the interaction term $temp*location*season$ and all other interaction terms implied by the principle of marginality with the inclusion of this term.
 
 We posit that this is because the annual temperature ranges in London and Washington DC is similar to that of Seoul's temperature range during Spring/Fall, because we see that the gradient of count against temp seems to be negative when temperature approaches the typical summer temperature of Seoul. However, it is difficult for us to determine a proper temperature cutoff to determine the 3 specific temperature regions, hence we think that using the season as a proxy for these different temperature categories is reasonable.
 
-## Visualization 2
-``` {r, fig.width=36, fig.height=24, fig.align='center'}
+## Bike Rental Trends of Workdays vs Non-workdays
+
+```{r, fig.width=36, fig.height=24, fig.align='center'}
 location_labels <- c("seoul"="Seoul", "london"="London", "washington_dc"="Washington D.C.")
 
 select_by_location_hour = function(df, location, hour) {
@@ -175,7 +283,7 @@ ggplot(data=joined2, mapping=aes(temp, cnt, color=is_workday)) +
   geom_point(size=2.5) +
   facet_wrap(~ location + factor(hr, levels=c("8 AM", "12 PM", "6 PM"))) +
   xlab("Temperature (in Celcius)") +
-  ylab("Rental Bike Count") +
+  ylab("Normalized Rental Bike Count") +
   ggtitle("Number of Bike Rentals For Workdays vs. Non-Workdays", subtitle = "Bike counts are normalized by the max rental count based on location.") +
   theme(plot.title = element_text(hjust = 0.5, face="bold"),
         plot.subtitle = element_text(hjust = 0.5),
@@ -186,21 +294,4 @@ ggplot(data=joined2, mapping=aes(temp, cnt, color=is_workday)) +
 
 From this visualization, we can see there is a clear separation/grouping for the number of bike rentals between working days vs non-working days during hours of the day when we can expect many people to be commuting to and from work (e.g at 8 AM and 6 PM). In all three locations, we can see that there are more bike rentals during peak work commute hours on working days compared to non-working days. However, during other times of the day when we don't expect people to be commuting to and from work (e.g at 12 PM), there isn't as clear of a distinction between the effects of it being a workday vs non-workday. For instance, we can observe that Seoul at 12 PM follows very similar trends for the number of bike rentals against the temperature regardless of whether it is a workday or non-workday.
 
-This visualizaton gives us some motivation to potentially use interaction term $temp*hr*is_workday$ along with all other relevant interaction terms implied by the principle of marginality. However, we'd like to note that while actually testing the model, we would like to analyze whether or not we actually need the triple interaction term, since we noticed that some of the graphs in the extended visualization (looking at all 24 hours of the day) appear to have the same gradient between workdays and non-workdays with a potential offset depending on the hour, while others appear to have differing gradients.
-
-## Visualization 3
-```{r boxplots of count against month}
-boxplots <- ggplot(df, aes(x = month, y = cnt))
-
-boxplots <- boxplots + geom_boxplot(aes(x=month, y=cnt, group=month), fill = "#00BFC4", color = "black", alpha = 0.8, outlier.color = "#F8766D", outlier.size = 0.7) + xlab("Month") + ylab("Count") + ggtitle("Boxplots of Count against Month by Location") + facet_wrap(~location, scales = "free") + scale_x_continuous(breaks=1:12)
-
-boxplots_log <- ggplot(df, aes(x = month, y = log(cnt)))
-
-boxplots_log <- boxplots_log + geom_boxplot(aes(x=month, y=log(cnt), group=month), fill = "#00BFC4", color = "black", alpha = 0.8, outlier.color = "#F8766D", outlier.size = 0.7) + xlab("Month") + ylab("log(Count)") + ggtitle("Boxplots of log(Count) against Month by Location") + facet_wrap(~location, scales = "free") + scale_x_continuous(breaks=1:12)
-boxplots
-
-grid.arrange(boxplots, boxplots_log, nrow=2)
-```
-From the top row of boxplots we observe that the average count and, in particular, variance of bike users count differs across the months. The non-uniform variance violates the canonical assumption of homoscedasticity. Furthermore, we also observe that the distribution of count in each month does not appear to be normal, as evident from the presence of numerous outliers at high values of count. In the second row, we make an attempt to normalize the data using a log-transformation in an attempt to pull in high values of count, but our resulting boxplots still show that the distribution is not normal.
-
-These observations motivate treating the data as count data and working from a Poisson GLM framework. A Poisson framework would, in particular, address the non-uniform variance of our data. We observe that variance of count in each month increases as mean increases, which is characteristic of Poisson processes.
+This visualizaton gives us some motivation to potentially use interaction term $temp*hr*is\_workday$ along with all other relevant interaction terms implied by the principle of marginality. However, we'd like to note that while actually testing the model, we would like to analyze whether or not we actually need the triple interaction term, since we noticed that some of the graphs in the extended visualization (looking at all 24 hours of the day) appear to have the same gradient between workdays and non-workdays with a potential offset depending on the hour, while others appear to have differing gradients.
