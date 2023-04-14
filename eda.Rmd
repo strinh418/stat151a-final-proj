@@ -19,7 +19,7 @@ library(ggpubr)
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
 ```
 
-# Model Question
+# Modeling Question
 
 ## Overview
 
@@ -27,7 +27,7 @@ We plan to analyze various datasets related to bike sharing data from different 
 
 ## Research question
 
-The question we wish to answer using these datasets, is what various variables/factors can be used to predict the number of bikes that will be rented on a given day. We will also be testing the following hypothesis.
+The question we wish to answer using these datasets, is what various variables/factors can be used to predict the number of bikes that will be rented on a given day.
 
 We also want to test the following hypotheses:
 
@@ -39,9 +39,9 @@ We also want to test the following hypotheses:
 
 Our findings could help inform bike sharing companies into making better economic decisions.
 
-i.  Predictive maintenance: Our findings could help bike sharing companies predict the expected mileage (and thus wear-and-tear) on the bikes ahead of time. This could help them better schedule bike maintenance/replacements.
+i.  Marketing decisions: A better understanding of the factors that affect number of users can provide valuable insights into marketing decisions, such as discounts and promotions. Companies can offer discounts during off-peak times or inclement weather to encourage greater usage.
 
-ii. Marketing decisions: A better understanding of the factors that affect number of users can provide valuable insights into marketing decisions, such as discounts and promotions. Companies can offer discounts during off-peak times or inclement weather to encourage greater usage.
+ii. Maintenance: Our findings could help bike sharing companies predict the expected mileage (and thus wear-and-tear) on the bikes ahead of time. It can also help them in finding the right timeslots (i.e a period where bike demand is not too high) to conduct their maintenance. Both of these factors aid them in scheduling their maintenance.
 
 ## Primary focus
 
@@ -51,7 +51,7 @@ Our primary focus is prediction accuracy. We will not be focusing on causal infe
 
 # Data Overview
 
-We are using the following datasets for data exploration and modeling:
+We are using the following datasets (each bullet-point is a hyperlink) for data exploration and modeling:
 
 -   [Bike Sharing in Washington D.C. Dataset (2011-2012)](https://www.kaggle.com/datasets/marklvl/bike-sharing-dataset)
 -   [Seoul Bike Sharing Demand Data Set (2017-2018)](https://archive.ics.uci.edu/ml/datasets/Seoul+Bike+Sharing+Demand#)
@@ -69,7 +69,7 @@ Regarding additional features and data that we believe would be useful for analy
 
 ## Data Cleaning
 
-Before creating the following visualizations, we performed some preprocessing steps to clean up the data. Since we planned to use three different datasets for bike rentals in three locations, we first selected only columns in each dataset that was readily available in all other datasets and derived certain columns that weren't explicitly available (e.g. extracting hour data and workday data from timestamps). Some datasets required additional cleaning (e.g. un-normalizing temperature data in the Washington D.C. dataset, ensuring that all datasets used the same units of measurement for windspeed and defined the same months per season). We then standardized how categorical variables were encoded using logicals to make it easier in the future for modeling to treat those columns as categorical data. After ensuring all the datasets followed the same format, we merged the datasets together.
+Before creating the following visualizations, we performed some preprocessing steps to clean up the data. Since we planned to use three different datasets for bike rentals in three locations, we first selected only columns in each dataset that were readily available in all other datasets and derived certain columns that weren't explicitly available (e.g. extracting hour data and workday data from timestamps). Some datasets required additional cleaning (e.g. un-normalizing temperature data in the Washington D.C. dataset, ensuring that all datasets used the same units of measurement for windspeed and defined the same months per season). We then standardized how categorical variables were encoded using logicals to make it easier in the future for modeling to treat those columns as categorical data. After ensuring all the datasets followed the same format, we merged the datasets together.
 
 ## Distribution and Heteroscedasticity of Data
 
