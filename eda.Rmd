@@ -14,8 +14,9 @@ library(pracma)
 library(gridExtra)
 library(reshape2)
 library(RColorBrewer)
+library(ggpubr)
 
-knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
 ```
 
 # Model Question
@@ -30,9 +31,9 @@ The question we wish to answer using these datasets, is what various variables/f
 
 We also want to test the following hypotheses:
 
--   B_temperature is different in different locations (We expect people in different areas to have different cold/heat tolerance)
--   B_isHoliday in different locations
--   Which is the most significant B? (We expect it to be B_temp, but expect B_windspeed to be significant too)
+-   Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+-   How does $\beta_{isWorkday}$ differ in different locations?
+-   Which is the most significant $\beta$? We expect it to be $\beta_{temp}$, but expect $\beta_{windspeed}$ to be significant too.
 
 ## Practical Decisions
 
@@ -146,8 +147,7 @@ These observations motivate treating the data as count data and working from a P
 
 ## Correlation Matrix of variables
 
-```{r}
-heatmap_theme = "YlOrRd"
+```{r, fig.width=36, fig.height=24, fig.align='center'}
 
 london1 = select_by_location_hour_workday(df, "london", 8, TRUE)
 london2 = select_by_location_hour_workday(df, "london", 12, TRUE)
@@ -165,14 +165,6 @@ select_continous_variables = function(df) {
   return(select(df, cnt, temp, hum, windspeed))
 }
 
-heatmap_func <- function(df) {
-  df = data.frame(df)
-  ggplot(df, aes(x, y, fill = z)) +
-    geom_tile() +
-    scale_fill_gradientn(colours = brewer.pal(n=7, name = heatmap_theme)) + 
-    theme(axis.text = element_blank(), axis.title = element_blank())
-}
-
 london_cor1 = cor(select_continous_variables(london1))
 london_cor2 = cor(select_continous_variables(london2))
 london_cor3 = cor(select_continous_variables(london3))
@@ -184,9 +176,53 @@ dc_cor3 = cor(select_continous_variables(dc3))
 seoul_cor1 = cor(select_continous_variables(seoul1))
 seoul_cor2 = cor(select_continous_variables(seoul2))
 seoul_cor3 = cor(select_continous_variables(seoul3))
+
+color_palette <- colorRampPalette(rev(RColorBrewer::brewer.pal(9, "YlOrRd")))
+legend_limits <- c(-1, 1)
+continuous_variables = c("cnt", "temp", "hum", "windspeed")
+
+get_heatmap_plot = function(mat, title) {
+  x <- colnames(as.data.frame(dc_cor1))
+  y <- colnames(as.data.frame(dc_cor1))
+  data <- expand.grid(X=x, Y=y)
+  data$corr <- melt(as.data.frame(dc_cor1))$value
+  
+  output_plot = ggplot(
+      data,
+      aes(X, Y, fill=corr)) + 
+    geom_tile() +
+    ggtitle(title) +
+    theme(legend.position = "bottom", 
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          plot.title = element_text(hjust = 0.5, size=40),
+          axis.title = element_text(face="bold"),
+          text = element_text(size=50),
+          panel.spacing.x = unit(25, "mm"),
+          legend.key.size = unit(25, "mm"),
+          legend.key.height = unit(25, "mm"), #change legend key height
+          legend.key.width = unit(100, "mm"), #change legend key width
+          )
+  return(output_plot)
+}
+
+ggarrange(
+  get_heatmap_plot(london_cor1, "london 0800"),
+  get_heatmap_plot(london_cor2, "london 1200"),
+  get_heatmap_plot(london_cor3, "london 1800"),
+  get_heatmap_plot(seoul_cor1, "seoul 0800"),
+  get_heatmap_plot(seoul_cor2, "seoul 1200"),
+  get_heatmap_plot(seoul_cor3, "seoul 1800"),
+  get_heatmap_plot(dc_cor1, "washington_dc 0800"),
+  get_heatmap_plot(dc_cor2,"washington_dc 1200"),
+  get_heatmap_plot(dc_cor3,"washington_dc 1800"),
+  common.legend = TRUE,
+  legend = "bottom",
+  nrow=3,
+  ncol=3)
 ```
 
-(TODO)
+Conditioning on time and location, we see that the absolute value of the pairwise correlation of the covariates $temp$, $hum$ and $windspeed$ are all $\leq 0.3$, so we do not run into multicollinearity problems with this choice of covariates. In the following visualizations, we introduce motivation for including interaction terms, but acknowledge that the inclusion of such terms might introduce multicollinearity.
 
 ## Bike Rental Trends Given Season and Location
 
