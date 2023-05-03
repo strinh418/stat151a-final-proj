@@ -33,9 +33,9 @@ knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
 
 # Introduction
 
-We want to explore how bike usage differs in different geographical locations when accounting for weather conditions and time/weather it is a working day to determine if people from different places have different preferences towards bike usage.
+We plan to analyze various datasets related to bike sharing data from different geographical locations (e.g. Seoul, Washington D.C., London etc) which contains information about the number of bikes rented on different days, along with weather conditions (temperature, humidity, etc) and miscellaneous information about the day these bikes were rented (weekends, holidays, etc).
 
-## Research Question
+## Research question
 
 The question we wish to answer using these datasets, is what various variables/factors can be used to predict the number of bikes that will be rented on a given day.
 
@@ -44,17 +44,35 @@ We also want to test the following hypotheses:
 -   Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
 -   How does $\beta_{isWorkday}$ differ in different locations?
 -   Which is the most significant $\beta$? We expect it to be $\beta_{temp}$, but expect $\beta_{windspeed}$ to be significant too.
--   Does our data follow the poisson distribution? We expect it to be so because we are working with count based data.
+-   Does the number of bike users follow any "common" distribution? We expect it to follow a discrete probability distribution
 
-We will be comparing the performance of OLS regression against a Poisson GLM, and testing the following methods to account for overfitting:
--     k-fold CV
--     Model selection with AIC/BIC
+## Practical Decisions
 
-## Data Overview
+Our findings could help inform bike sharing companies into making better economic decisions.
 
-We have data from London, Seoul and Washington on bike use, and all of them contain data on temperature, humidity, windspeed, is_holiday, season, date and time (hour only). We have merged these datasets, and will be treating temperature, humidity and windspeed as continuous variables, while treating time as a categorical variable to prevent autocorrelation. We have also created a new variable, is_workday, which tracks whether the date the observation is from is a workday. From our EDA, we have determined that this is a significant event that is strongly correlated to bike usage.
+i.  Marketing decisions: A better understanding of the factors that affect number of users can provide valuable insights into marketing decisions, such as discounts and promotions. Companies can offer discounts during off-peak times or inclement weather to encourage greater usage.
 
-## Modeling approaches & Expected outcomes
+ii. Maintenance: Our findings could help bike sharing companies predict the expected mileage (and thus wear-and-tear) on the bikes ahead of time. It can also help them in finding the right timeslots (i.e a period where bike demand is not too high) to conduct their maintenance. Both of these factors aid them in scheduling their maintenance.
+
+## Primary focus
+
+Our primary focus is prediction accuracy. We will not be focusing on causal inference as we would have to control for confounding variables, and these confounding variables may not be captured in our datasets.
+
+\newpage
+
+# Data Overview
+
+We are using the following datasets (each bullet-point is a hyperlink) for data exploration and modeling:
+
+-   [Bike Sharing in Washington D.C. Dataset (2011-2012)](https://www.kaggle.com/datasets/marklvl/bike-sharing-dataset)
+-   [Seoul Bike Sharing Demand Data Set (2017-2018)](https://archive.ics.uci.edu/ml/datasets/Seoul+Bike+Sharing+Demand#)
+-   [London bike sharing dataset (2015-2017)](https://www.kaggle.com/datasets/hmavrodiev/london-bike-sharing-dataset)
+
+Each dataset contains the hourly count of rental bikes on each specific date, with additional information on weather and holiday schedules. Each observation corresponds to an hour of the day, resulting in observations being dependent on each other. Working with time series data will be one of the challenges of working with these datasets for linear modeling, but we plan to lessen the effects of dependence between observations by treating "hour" as a categorical variable.
+
+It would probably be difficult for modeling on this data to be generalizable to a larger population and be applicable to other locations since the popularity of bike sharing and general trends varies across locations in a way that cannot be captured within the model. Working with these datasets will likely only provide us with a model appropriate specifically for Washington D.C, Seoul, and London.
+
+Regarding additional features and data that we believe would be useful for analysis and modeling, we think that the inclusion of additional weather data like precipitation could be useful in improving the model. This is because it would make sense for the amount of rainfall to impact the number of people choosing to utilize rental bikes on a particular day. However, since not all the datasets we are using contain precipitation data, we are not currently planning to utilize rainfall as a feature in developing our model.
 
 # Modeling Tool Motivations
 
@@ -70,13 +88,35 @@ head(df)
 dim(df)
 ```
 
+```{r}
+mean(df$cnt)
+var(df$cnt)
+```
+We see that since $mean(cnt)$ is significantly different from $Var(cnt)$, this implies that $cnt$ is not poisson distributed, since for poisson distributions, we expect $mean(X) = Var(X) = \lambda$ if $X \sim Po(\lambda)$. We will however still be testing poisson models because we are working with count-based data, and the poisson distribution is a reasonable distribution to use for arbitrary count based data. We will also be testing normal, log-normal and negative binomial models. The former 2 because they are canonical models which we will provide a baseline performance, and the latter because it is a generalized poisson model.
+
+
+We first test the various models with cross-validation to observe the errors.
+
 ```{r CV Model training}
 num_folds = 10
 seeds = 1:(num_folds + 1)
 train_control <- trainControl(method="cv", number=num_folds, seeds=seeds)
+train_control_nb <- caret::trainControl(
+	method = "cv", 
+	number=10, 
+	seeds = list(rep(1, 3), 
+				 rep(2, 3), 
+				 rep(3, 3), 
+				 rep(4, 3), 
+				 rep(5, 3),
+				 rep(6, 3),
+				 rep(7, 3),
+				 rep(8, 3),
+				 rep(9, 3),
+				 rep(10, 3),
+				 11))
 
 ols_simple_train <- train(cnt ~ ., data=df, method="lm", trControl=train_control)
-
 ols_complex_train = train(
   cnt ~ . + temp*location*season + temp*hr*is_workday,
   data=df, 
@@ -84,9 +124,7 @@ ols_complex_train = train(
   trControl=train_control
 )
 
-# Not sure how to transform this back into cnt, because it is hard to compare RMSE otherwise
 log_ols_simple_train <- train(log(1+cnt) ~ ., data=df, method="lm", trControl=train_control)
-
 log_ols_complex_train = train(
   log(1+cnt) ~ . + temp*location*season + temp*hr*is_workday,
   data=df, 
@@ -101,7 +139,6 @@ poisson_simple_train = train(
   family="poisson", 
   trControl=train_control
 )
-
 poisson_complex_train = train(
   cnt ~ . + temp*location*season + temp*hr*is_workday,
   data=df, 
@@ -110,6 +147,16 @@ poisson_complex_train = train(
   trControl=train_control
 )
 
+nbm_simple_train = train(cnt ~ ., data=df, method="glm.nb", trControl=train_control_nb)
+nbm_complex_train = train(
+  cnt ~ . + temp*location*season + temp*hr*is_workday, 
+  data=df, 
+  method="glm.nb", 
+  trControl=train_control_nb
+)
+```
+
+```{r}
 ols_simple_train
 ols_complex_train
 log_ols_simple_train
@@ -118,8 +165,12 @@ log_ols_complex_train
 mean(sqrt((exp(predict(log_ols_complex_train, newdata=df)) - 1)^2))
 poisson_simple_train
 poisson_complex_train
+nbm_simple_train
+nbm_complex_train
 ```
-As expected, we see that the poisson model has the lowest RMSE score, highest R^2 and lowest residual deviance.
+
+We observe that with the exception of the log-normal model, the models with the triple interaction terms perform better (on RMSE) than the simpler models. This follows our expectations from our EDA where we see different trends when we conditioned on these triple interaction terms. We have no reason to believe that our data follows a log-normal trend, since we are working with count based data, hence it is not unexpected that the log-normal model does not improve with the addition of triple interaction terms. We also see that the RMSE of the poisson model is better than the negative binomial model, which is interesting. This will be explored in the following section.
+
 
 ```{r Comparing full models}
 ols_simple = lm(cnt ~ ., data=df)
@@ -131,20 +182,79 @@ log_ols_complex = lm(log(1+cnt) ~ . + temp*location*season + temp*hr*is_workday,
 poisson_simple = glm(cnt ~ ., data = df, family = "poisson")
 poisson_complex = glm(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, family = "poisson")
 
+nbm_simple = glm.nb(cnt ~ ., data = df, link="log")
+nbm_complex = glm.nb(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, link="log")
+
 mean(sqrt((ols_simple$fitted.values - df$cnt)^2))
 mean(sqrt((ols_complex$fitted.values - df$cnt)^2))
-mean(sqrt((log_ols_simple$fitted.values - df$cnt)^2))
-mean(sqrt((log_ols_complex$fitted.values - df$cnt)^2))
+mean(sqrt(((exp(log_ols_simple$fitted.values) - 1) - df$cnt)^2))
+mean(sqrt(((exp(log_ols_complex$fitted.values) - 1) - df$cnt)^2))
 mean(sqrt((poisson_simple$fitted.values - df$cnt)^2))
 mean(sqrt((poisson_complex$fitted.values - df$cnt)^2))
+mean(sqrt((nbm_simple$fitted.values - df$cnt)^2))
+mean(sqrt((nbm_complex$fitted.values - df$cnt)^2))
+
+logLik(ols_simple)
+logLik(ols_complex)
+logLik(log_ols_simple)
+logLik(log_ols_complex)
+logLik(poisson_simple)
+logLik(poisson_complex)
+logLik(nbm_simple)
+logLik(nbm_complex)
+
 ```
 
+Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. THe negative binomial models gives us the best log-likelihood, providing us justification for choosing this GLM in our further analysis.
+
+The following plots show us the fits of the various models. We see that all models perform poorly when the predictions are low, which is reasonable, but as predictions increase, the relative errors decrease.
 
 ```{r}
-full.model <- lm(cnt ~ ., data=df)
-step.model <- stepAIC(full.model, direction = "backward", 
-                      trace = TRUE)
+generate_df = function(model) {
+  output_df = data.frame(preds=model$fitted.values, resids=model$residuals)
+  return(output_df)
+}
+
+generate_plot = function(model, title) {
+  resids_df = generate_df(model)
+  plot = ggplot(data=resids_df, aes(x=preds, y=resids)) + 
+    geom_point(size=0.3) +
+    ggtitle(title)
+  return(plot)
+}
+
+ggarrange(
+  generate_plot(ols_simple, "ols_simple"),
+  generate_plot(poisson_simple, "poisson_simple"),
+  generate_plot(nbm_simple, "poisson_simple"),
+  generate_plot(ols_complex, "ols_complex"),
+  generate_plot(poisson_complex, "poisson_complex"),
+  generate_plot(nbm_complex, "nbm_complex"),
+  nrow=2,
+  ncol=3
+)
 ```
 
+In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. 
 
+```{r}
+full.model <- glm.nb(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, link="log")
+bic_step.model <- stepAIC(
+  full.model, 
+  direction = "both",
+  k = log(nrow(df)),
+  trace = TRUE
+)
+aic_step.model <- stepAIC(
+  full.model, 
+  direction = "both",
+  trace = TRUE
+)
+
+size(full.model$coefficients)
+size(bic_step.model$coefficients)
+size(aic_step.model$coefficients)
+```
+
+The AIC selection criteria does not shrink the model at all, while the BIC model shrinks the model by 23 parameters. 
 
