@@ -1,0 +1,148 @@
+---
+title: "Modeling Report"
+author: "Benjamin Lee, Stephanie Trinh, Zhi Long Yeo"
+date: "2023-05-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup, include=FALSE}
+library(knitr)
+library(tidyverse)
+library(pracma)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(ggplot2)
+library(ggpubr)
+library(GGally)
+library(faux)
+library(janitor)
+library(glmnet)
+library(MASS)
+library(caret)
+
+set.seed(5)
+
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+```
+
+# Introduction
+
+We want to explore how bike usage differs in different geographical locations when accounting for weather conditions and time/weather it is a working day to determine if people from different places have different preferences towards bike usage.
+
+## Research Question
+
+The question we wish to answer using these datasets, is what various variables/factors can be used to predict the number of bikes that will be rented on a given day.
+
+We also want to test the following hypotheses:
+
+-   Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+-   How does $\beta_{isWorkday}$ differ in different locations?
+-   Which is the most significant $\beta$? We expect it to be $\beta_{temp}$, but expect $\beta_{windspeed}$ to be significant too.
+-   Does our data follow the poisson distribution? We expect it to be so because we are working with count based data.
+
+We will be comparing the performance of OLS regression against a Poisson GLM, and testing the following methods to account for overfitting:
+-     k-fold CV
+-     Model selection with AIC/BIC
+
+## Data Overview
+
+We have data from London, Seoul and Washington on bike use, and all of them contain data on temperature, humidity, windspeed, is_holiday, season, date and time (hour only). We have merged these datasets, and will be treating temperature, humidity and windspeed as continuous variables, while treating time as a categorical variable to prevent autocorrelation. We have also created a new variable, is_workday, which tracks whether the date the observation is from is a workday. From our EDA, we have determined that this is a significant event that is strongly correlated to bike usage.
+
+## Modeling approaches & Expected outcomes
+
+# Modeling Tool Motivations
+
+# Modeling Tool Assumptions
+
+# Model Comparison
+
+```{r loading data}
+df_full = read.csv('combined_dataset_cleaned.csv', colClasses= c("integer", "character", "logical", "character", "numeric", "numeric", "numeric", "integer", "integer", "integer", "integer", "integer", "character", "integer", "logical", "logical"))
+df = df_full[c("cnt", "temp", "hum", "windspeed", "location", "hr", "is_workday", "season")]
+df$hr = as.character(df$hr)
+head(df)
+dim(df)
+```
+
+```{r CV Model training}
+num_folds = 10
+seeds = 1:(num_folds + 1)
+train_control <- trainControl(method="cv", number=num_folds, seeds=seeds)
+
+ols_simple_train <- train(cnt ~ ., data=df, method="lm", trControl=train_control)
+
+ols_complex_train = train(
+  cnt ~ . + temp*location*season + temp*hr*is_workday,
+  data=df, 
+  method="lm", 
+  trControl=train_control
+)
+
+# Not sure how to transform this back into cnt, because it is hard to compare RMSE otherwise
+log_ols_simple_train <- train(log(1+cnt) ~ ., data=df, method="lm", trControl=train_control)
+
+log_ols_complex_train = train(
+  log(1+cnt) ~ . + temp*location*season + temp*hr*is_workday,
+  data=df, 
+  method="lm", 
+  trControl=train_control
+)
+
+poisson_simple_train = train(
+  cnt ~ ., 
+  data=df, 
+  method="glm", 
+  family="poisson", 
+  trControl=train_control
+)
+
+poisson_complex_train = train(
+  cnt ~ . + temp*location*season + temp*hr*is_workday,
+  data=df, 
+  method="glm", 
+  family="poisson", 
+  trControl=train_control
+)
+
+ols_simple_train
+ols_complex_train
+log_ols_simple_train
+log_ols_complex_train
+poisson_simple_train
+poisson_complex_train
+```
+As expected, we see that the poisson model has the lowest RMSE score, highest R^2 and lowest residual deviance.
+
+```{r Comparing full models}
+ols_simple = lm(cnt ~ ., data=df)
+ols_complex = lm(cnt ~ . + temp*location*season + temp*hr*is_workday, data=df)
+
+log_ols_simple = lm(log(1+cnt) ~ ., data=df)
+log_ols_complex = lm(log(1+cnt) ~ . + temp*location*season + temp*hr*is_workday, data=df)
+
+poisson_simple = glm(cnt ~ ., data = df, family = "poisson")
+poisson_complex = glm(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, family = "poisson")
+
+mean(sqrt((ols_simple$fitted.values - df$cnt)^2))
+mean(sqrt((ols_complex$fitted.values - df$cnt)^2))
+mean(sqrt((log_ols_simple$fitted.values - df$cnt)^2))
+mean(sqrt((log_ols_complex$fitted.values - df$cnt)^2))
+mean(sqrt((poisson_simple$fitted.values - df$cnt)^2))
+mean(sqrt((poisson_complex$fitted.values - df$cnt)^2))
+```
+
+
+```{r}
+full.model <- lm(cnt ~ ., data=df)
+step.model <- stepAIC(full.model, direction = "backward", 
+                      trace = TRUE)
+```
+
+
+
