@@ -113,7 +113,9 @@ poisson_complex_train = train(
 ols_simple_train
 ols_complex_train
 log_ols_simple_train
+mean(sqrt((exp(predict(log_ols_simple_train, newdata=df)) - 1)^2))
 log_ols_complex_train
+mean(sqrt((exp(predict(log_ols_complex_train, newdata=df)) - 1)^2))
 poisson_simple_train
 poisson_complex_train
 ```
