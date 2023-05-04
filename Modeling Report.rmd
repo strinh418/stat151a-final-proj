@@ -189,7 +189,7 @@ summary_train_df = data.frame(
     ols_simple_train$results$Rsquared,
     ols_complex_train$results$Rsquared,
     log_ols_simple_train$results$Rsquared,
-    log_ols_simple_train$results$Rsquared,
+    log_ols_complex_train$results$Rsquared,
     poisson_simple_train$results$Rsquared,
     poisson_complex_train$results$Rsquared,
     nbm_simple_train$results$Rsquared[2],
@@ -245,10 +245,10 @@ maes = c(
   mean(abs(ols_complex$residuals)),
   mean(abs(((exp(log_ols_simple$fitted.values) - 1) - df$cnt))),
   mean(abs(((exp(log_ols_complex$fitted.values) - 1) - df$cnt))),
-  mean(abs(poisson_simple$residuals)),
-  mean(abs(poisson_complex$residuals)),
-  mean(abs(nbm_simple$residuals)),
-  mean(abs(nbm_complex$residuals))
+  mean(abs((poisson_simple$fitted.values - df$cnt))),
+  mean(abs((poisson_complex$fitted.values - df$cnt))),
+  mean(abs((nbm_simple$fitted.values - df$cnt))),
+  mean(abs((nbm_complex$fitted.values - df$cnt)))
 )
 
 loglikelihoods = c(
@@ -270,13 +270,9 @@ kable(summary_df)
 
 Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. THe negative binomial models gives us the best log-likelihood and MAE providing us justification for choosing this GLM in our further analysis.
 
-We note that despite the relatively good RMSE and loglikelihood of the log-ols model, it has extremely poor MAE compared to the poisson/negative binomials.
-
-The following plots show us the fits of the various models. We see that all models perform poorly when the predictions are low, which is reasonable, but as predictions increase, the relative errors decrease. The OLS and log-OLS models are obviously wrong.
-
 ```{r}
 generate_df = function(model) {
-  output_df = data.frame(preds=model$fitted.values, residuals=model$residuals)
+  output_df = data.frame(preds=model$fitted.values, residuals=model$fitted.values - df$cnt)
   return(output_df)
 }
 
@@ -321,7 +317,7 @@ ggarrange(
 
 In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a negative binomial distribution is true.
 
-```{r}
+```{r AIC/BIC selection}
 full.model <- glm.nb(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, link="log")
 bic_step.model <- stepAIC(
   full.model, 
