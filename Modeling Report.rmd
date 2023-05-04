@@ -6,10 +6,6 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r setup, include=FALSE}
 library(knitr)
 library(tidyverse)
 library(pracma)
@@ -78,14 +74,15 @@ Regarding additional features and data that we believe would be useful for analy
 
 # Modeling Tool Assumptions
 
-# Model Comparison
+# Model Selection
+
+Shown below is the data that we are using for our analysis. Our data consists of 43,553 rows.
 
 ```{r loading data}
 df_full = read.csv('combined_dataset_cleaned.csv', colClasses= c("integer", "character", "logical", "character", "numeric", "numeric", "numeric", "integer", "integer", "integer", "integer", "integer", "character", "integer", "logical", "logical"))
 df = df_full[c("cnt", "temp", "hum", "windspeed", "location", "hr", "is_workday", "season")]
 df$hr = as.character(df$hr)
-head(df)
-dim(df)
+kable(head(df), caption = "Preview of data used")
 ```
 
 ```{r}
@@ -157,25 +154,61 @@ nbm_complex_train = train(
 ```
 
 ```{r}
-ols_simple_train
-ols_complex_train
-log_ols_simple_train
-mean(sqrt((exp(predict(log_ols_simple_train, newdata=df)) - 1)^2))
-log_ols_complex_train
-mean(sqrt((exp(predict(log_ols_complex_train, newdata=df)) - 1)^2))
-poisson_simple_train
-poisson_complex_train
-nbm_simple_train
-nbm_complex_train
+summary_train_df = data.frame(
+  model = c(
+    "ols_simple", 
+    "ols_complex", 
+    "log_ols_simple", 
+    "log_ols_complex", 
+    "poisson_simple", 
+    "poisson_complex",
+    "nbm_simple",
+    "nbm_complex"
+    ),
+  rmse = c(
+    ols_simple_train$results$RMSE,
+    ols_complex_train$results$RMSE,
+    sqrt(mean((exp(predict(log_ols_simple_train, newdata=df)) - 1 - df$cnt)^2)),
+    sqrt(mean((exp(predict(log_ols_complex_train, newdata=df)) - 1 - df$cnt)^2)),
+    poisson_simple_train$results$RMSE,
+    poisson_complex_train$results$RMSE,
+    nbm_simple_train$results$RMSE[2],
+    nbm_complex_train$results$RMSE[2]
+  ),
+  mae = c(
+    ols_simple_train$results$MAE,
+    ols_complex_train$results$MAE,
+    mean(abs((exp(predict(log_ols_simple_train, newdata=df)) - 1 - df$cnt))),
+    mean(abs((exp(predict(log_ols_complex_train, newdata=df)) - 1 - df$cnt))),
+    poisson_simple_train$results$MAE,
+    poisson_complex_train$results$MAE,
+    nbm_simple_train$results$MAE[2],
+    nbm_complex_train$results$MAE[2]
+  ),
+  rSquared = c(
+    ols_simple_train$results$Rsquared,
+    ols_complex_train$results$Rsquared,
+    log_ols_simple_train$results$Rsquared,
+    log_ols_simple_train$results$Rsquared,
+    poisson_simple_train$results$Rsquared,
+    poisson_complex_train$results$Rsquared,
+    nbm_simple_train$results$Rsquared[2],
+    nbm_complex_train$results$Rsquared[2]
+  )
+)
+
+kable(summary_train_df)
 ```
 
-We observe that with the exception of the log-normal model, the models with the triple interaction terms perform better (on RMSE) than the simpler models. This follows our expectations from our EDA where we see different trends when we conditioned on these triple interaction terms. We have no reason to believe that our data follows a log-normal trend, since we are working with count based data, hence it is not unexpected that the log-normal model does not improve with the addition of triple interaction terms. We also see that the RMSE of the poisson model is better than the negative binomial model, which is interesting. This will be explored in the following section.
+We observe that the models with the triple interaction terms perform better (on RMSE) than the simpler models. This follows our expectations from our EDA where we see different trends when we conditioned on these triple interaction terms. We also see that the RMSE of the poisson model is better than the negative binomial model, which is interesting. This will be explored in the following section.
+
+We train on full data in the following section.
 
 
 ```{r Comparing full models}
 ols_simple = lm(cnt ~ ., data=df)
 ols_complex = lm(cnt ~ . + temp*location*season + temp*hr*is_workday, data=df)
-
+ 
 log_ols_simple = lm(log(1+cnt) ~ ., data=df)
 log_ols_complex = lm(log(1+cnt) ~ . + temp*location*season + temp*hr*is_workday, data=df)
 
@@ -185,57 +218,108 @@ poisson_complex = glm(cnt ~ . + temp*location*season + temp*hr*is_workday, data 
 nbm_simple = glm.nb(cnt ~ ., data = df, link="log")
 nbm_complex = glm.nb(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, link="log")
 
-mean(sqrt((ols_simple$fitted.values - df$cnt)^2))
-mean(sqrt((ols_complex$fitted.values - df$cnt)^2))
-mean(sqrt(((exp(log_ols_simple$fitted.values) - 1) - df$cnt)^2))
-mean(sqrt(((exp(log_ols_complex$fitted.values) - 1) - df$cnt)^2))
-mean(sqrt((poisson_simple$fitted.values - df$cnt)^2))
-mean(sqrt((poisson_complex$fitted.values - df$cnt)^2))
-mean(sqrt((nbm_simple$fitted.values - df$cnt)^2))
-mean(sqrt((nbm_complex$fitted.values - df$cnt)^2))
+models = c(
+  "ols_simple", 
+  "ols_complex", 
+  "log_ols_simple", 
+  "log_ols_complex", 
+  "poisson_simple", 
+  "poisson_complex",
+  "nbm_simple",
+  "nbm_complex"
+)
 
-logLik(ols_simple)
-logLik(ols_complex)
-logLik(log_ols_simple)
-logLik(log_ols_complex)
-logLik(poisson_simple)
-logLik(poisson_complex)
-logLik(nbm_simple)
-logLik(nbm_complex)
+rmses = c(
+  sqrt(mean((ols_simple$fitted.values - df$cnt)^2)),
+  sqrt(mean((ols_complex$fitted.values - df$cnt)^2)),
+  sqrt(mean(((exp(log_ols_simple$fitted.values) - 1) - df$cnt)^2)),
+  sqrt(mean(((exp(log_ols_complex$fitted.values) - 1) - df$cnt)^2)),
+  sqrt(mean((poisson_simple$fitted.values - df$cnt)^2)),
+  sqrt(mean((poisson_complex$fitted.values - df$cnt)^2)),
+  sqrt(mean((nbm_simple$fitted.values - df$cnt)^2)),
+  sqrt(mean((nbm_complex$fitted.values - df$cnt)^2))
+)
 
+maes = c(
+  mean(abs(ols_simple$residuals)),
+  mean(abs(ols_complex$residuals)),
+  mean(abs(((exp(log_ols_simple$fitted.values) - 1) - df$cnt))),
+  mean(abs(((exp(log_ols_complex$fitted.values) - 1) - df$cnt))),
+  mean(abs(poisson_simple$residuals)),
+  mean(abs(poisson_complex$residuals)),
+  mean(abs(nbm_simple$residuals)),
+  mean(abs(nbm_complex$residuals))
+)
+
+loglikelihoods = c(
+  logLik(ols_simple),
+  logLik(ols_complex),
+  logLik(log_ols_simple),
+  logLik(log_ols_complex),
+  logLik(poisson_simple),
+  logLik(poisson_complex),
+  logLik(nbm_simple),
+  logLik(nbm_complex)
+)
+
+summary_df = data.frame(
+  model = models, rmse = rmses, mae = maes, loglikelihood = loglikelihoods
+)
+kable(summary_df)
 ```
 
-Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. THe negative binomial models gives us the best log-likelihood, providing us justification for choosing this GLM in our further analysis.
+Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. THe negative binomial models gives us the best log-likelihood and MAE providing us justification for choosing this GLM in our further analysis.
 
-The following plots show us the fits of the various models. We see that all models perform poorly when the predictions are low, which is reasonable, but as predictions increase, the relative errors decrease.
+We note that despite the relatively good RMSE and loglikelihood of the log-ols model, it has extremely poor MAE compared to the poisson/negative binomials.
+
+The following plots show us the fits of the various models. We see that all models perform poorly when the predictions are low, which is reasonable, but as predictions increase, the relative errors decrease. The OLS and log-OLS models are obviously wrong.
 
 ```{r}
 generate_df = function(model) {
-  output_df = data.frame(preds=model$fitted.values, resids=model$residuals)
+  output_df = data.frame(preds=model$fitted.values, residuals=model$residuals)
   return(output_df)
 }
 
 generate_plot = function(model, title) {
   resids_df = generate_df(model)
-  plot = ggplot(data=resids_df, aes(x=preds, y=resids)) + 
-    geom_point(size=0.3) +
-    ggtitle(title)
+  plot = ggplot(data=resids_df, aes(x=preds, y=residuals)) + 
+    geom_point(size=0.3, alpha=0.8) +
+    ggtitle(title) +
+    theme(plot.title = element_text(hjust = 0.5, size=10))
+  return(plot)
+}
+
+generate_df_log_models = function(model) {
+  preds = predict(model, newdata=df)
+  resids = exp(preds) - 1 - df$cnt
+  output_df = data.frame(preds=exp(preds) - 1, residuals=resids)
+  return(output_df)
+}
+
+generate_plot_log_models = function(model, title) {
+  resids_df = generate_df_log_models(model)
+  plot = ggplot(data=resids_df, aes(x=preds, y=residuals)) + 
+    geom_point(size=0.3, alpha=0.8) +
+    ggtitle(title) +
+    theme(plot.title = element_text(hjust = 0.5, size=10))
   return(plot)
 }
 
 ggarrange(
   generate_plot(ols_simple, "ols_simple"),
+  generate_plot_log_models(log_ols_simple, "log_ols_simple"),
   generate_plot(poisson_simple, "poisson_simple"),
-  generate_plot(nbm_simple, "poisson_simple"),
+  generate_plot(nbm_simple, "nbm_simple"),
   generate_plot(ols_complex, "ols_complex"),
+  generate_plot_log_models(log_ols_complex, "log_ols_complex"),
   generate_plot(poisson_complex, "poisson_complex"),
   generate_plot(nbm_complex, "nbm_complex"),
   nrow=2,
-  ncol=3
+  ncol=4
 )
 ```
 
-In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. 
+In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a negative binomial distribution is true.
 
 ```{r}
 full.model <- glm.nb(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, link="log")
@@ -251,10 +335,23 @@ aic_step.model <- stepAIC(
   trace = TRUE
 )
 
-size(full.model$coefficients)
-size(bic_step.model$coefficients)
-size(aic_step.model$coefficients)
+num_coeffs_df = data.frame(
+  model = c("full", "bic_bidirectional", "aic_bidirectional"),
+  num_coeff = c(
+    size(full.model$coefficients)[2],
+    size(bic_step.model$coefficients)[2],
+    size(aic_step.model$coefficients)[2]
+  )
+)
+kable(num_coeffs_df)
 ```
 
-The AIC selection criteria does not shrink the model at all, while the BIC model shrinks the model by 23 parameters. 
+The AIC selection criteria does not shrink the model at all, while the BIC model shrinks the model by 23 parameters. The parameters removed are:
 
+```{r}
+all_coeff_names = names(full.model$coefficients)
+bic_coeff_names = names(bic_step.model$coefficients)
+setdiff(all_coeff_names, bic_coeff_names)
+```
+
+This means that the BIC selection criteria selects for a model that treats the triple interaction term of $temp*hr*isWorkday$ identically whenever $isWorkday = True$.
