@@ -87,8 +87,7 @@ kable(head(df), caption = "Preview of data used")
 ```
 
 ```{r}
-mean(df$cnt)
-var(df$cnt)
+kable(data.frame(mean=mean(df$cnt), var=var(df$cnt)), caption="Mean and Variance of cnt")
 ```
 We see that since $mean(cnt)$ is significantly different from $Var(cnt)$, this implies that $cnt$ is not poisson distributed, since for poisson distributions, we expect $mean(X) = Var(X) = \lambda$ if $X \sim Po(\lambda)$. We will however still be testing poisson models because we are working with count-based data, and the poisson distribution is a reasonable distribution to use for arbitrary count based data. We will also be testing normal, log-normal and negative binomial models. The former 2 because they are canonical models which we will provide a baseline performance, and the latter because it is a generalized poisson model.
 
@@ -198,13 +197,12 @@ summary_train_df = data.frame(
   )
 )
 
-kable(summary_train_df)
+kable(summary_train_df, caption="CV Train Results")
 ```
 
 We observe that the models with the triple interaction terms perform better (on RMSE) than the simpler models. This follows our expectations from our EDA where we see different trends when we conditioned on these triple interaction terms. We also see that the RMSE of the poisson model is better than the negative binomial model, which is interesting. This will be explored in the following section.
 
 We train on full data in the following section.
-
 
 ```{r Comparing full models}
 ols_simple = lm(cnt ~ ., data=df)
@@ -218,7 +216,9 @@ poisson_complex = glm(cnt ~ . + temp*location*season + temp*hr*is_workday, data 
 
 nbm_simple = glm.nb(cnt ~ ., data = df, link="log")
 nbm_complex = glm.nb(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, link="log")
+```
 
+```{r}
 models = c(
   "ols_simple", 
   "ols_complex", 
@@ -266,8 +266,9 @@ loglikelihoods = c(
 summary_df = data.frame(
   model = models, rmse = rmses, mae = maes, loglikelihood = loglikelihoods
 )
-kable(summary_df)
+kable(summary_df, caption="Full Data Train Results")
 ```
+
 
 Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. The log-ols models gives us the best log-likelihood and MAE providing us justification for choosing this over the other models in our further analysis. The following plots show us the relationship between predicted values and residuals. We observe that residuals are not evenly scattered about 0.
 
@@ -317,12 +318,11 @@ ggarrange(
   generate_plot(nbm_complex, "nbm_complex"),
   nrow=2,
   ncol=4,
-  common.legend = TRUE,
-  legend.position = "bottom"
+  common.legend = TRUE
 )
 ```
 
-Here's a closer look at the log-ols model, with the fit against $cnt$ and $log(1+cnt)$ respectively. We observe that besides a mode of errors when $cnt$ is extremely low, the log-ols model has a good fit against $log(cnt+1)$.
+Here's a closer look at the log-ols model, with the fit against $cnt$ and $log(1+cnt)$ respectively. We observe that besides a mode of errors when $cnt$ is extremely low, the log-ols model has a good fit against $log(cnt+1)$. We see a mode of errors, shown by the straight lines with negative coefficients, that occurs when $cnt$ is extremely low. We observe that our residuals are evenly scattered around the x-axis for our log-normal model, with slight heteroskedasticity.
 
 ```{r}
 generate_df_log_models_logcnt = function(model) {
@@ -347,30 +347,30 @@ ggarrange(
   plot_log_simple_logcnt = generate_plot_log_models_logcnt(log_ols_simple, "log_ols_complex_logcnt"),
   nrow=2,
   ncol=2,
-  common.legend = TRUE,
-  legend.position = "right"
+  common.legend = TRUE
 )
 
 
 ```
 
 
-In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a negative binomial distribution is true.
+In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a log normal distribution is true.
 
-```{r AIC/BIC selection}
-full.model <- lm(log(cnt + 1) ~ . + temp*location*season + temp*hr*is_workday, data = df)
-bic_step.model <- stepAIC(
+```{r, echo=FALSE, results='hide', message=FALSE}
+full.model = lm(log(cnt + 1) ~ . + temp*location*season + temp*hr*is_workday, data = df)
+bic_step.model = stepAIC(
   full.model, 
   direction = "both",
   k = log(nrow(df)),
   trace = TRUE
 )
-aic_step.model <- stepAIC(
+aic_step.model = stepAIC(
   full.model, 
   direction = "both",
   trace = TRUE
 )
-
+```
+```{r}
 num_coeffs_df = data.frame(
   model = c("full", "bic_bidirectional", "aic_bidirectional"),
   num_coeff = c(
@@ -382,13 +382,25 @@ num_coeffs_df = data.frame(
 kable(num_coeffs_df)
 ```
 
-The AIC and BIC model both shrink the model by 23 parameters. The parameters removed are:
+The AIC and BIC model both shrink the model by the same 23 parameters. The parameters removed are:
 
-```{r include=TRUE}
+```{r}
 all_coeff_names = names(full.model$coefficients)
 bic_coeff_names = names(bic_step.model$coefficients)
 aic_coeff_names = names(aic_step.model$coefficients)
-setdiff(aic_coeff_names, bic_coeff_names)
 setdiff(all_coeff_names, bic_coeff_names)
 ```
-The AIC and BIC models both coincide. The selection criteria means that the triple interaction term of $temp*hr*isWorkday$ is removed.
+The selection criteria means that the triple interaction term of $temp*hr*isWorkday$ is removed. The resulting model is:
+
+```{r}
+summary(bic_step.model)
+```
+
+Most of our covariates have very significant coefficients, but we note that the following covariates do not have significant p-values. We will run a F-test to determine if they are significant as a group. 
+
+```{r}
+pvals = summary(bic_step.model)$coefficients[, 4]
+pvals = pvals[pvals >= 0.1]
+kable(data.frame(pvals), caption="Insignificant Coefficients")
+```
+
