@@ -268,7 +268,7 @@ summary_df = data.frame(
 kable(summary_df)
 ```
 
-Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. THe negative binomial models gives us the best log-likelihood and MAE providing us justification for choosing this GLM in our further analysis.
+Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. The log-ols models gives us the best log-likelihood and MAE providing us justification for choosing this over the other models in our further analysis. The following plots show us the relationship between predicted values and residuals. We observe that residuals are not evenly scattered about 0.
 
 ```{r}
 generate_df = function(model) {
@@ -318,7 +318,7 @@ ggarrange(
 In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a negative binomial distribution is true.
 
 ```{r AIC/BIC selection}
-full.model <- glm.nb(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df, link="log")
+full.model <- lm(cnt ~ . + temp*location*season + temp*hr*is_workday, data = df)
 bic_step.model <- stepAIC(
   full.model, 
   direction = "both",
