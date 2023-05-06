@@ -22,6 +22,7 @@ library(glmnet)
 library(MASS)
 library(caret)
 library(RColorBrewer)
+library(car)
 
 set.seed(5)
 
@@ -458,6 +459,7 @@ pvals = pvals[pvals >= 0.1]
 kable(data.frame(pvals), caption="Insignificant Coefficients")
 ```
 
+
 We also test variable selection with LASSO. Choosing $\lambda_{1\sigma}$, we find that lasso shrinks the model by the following 48 variables.
 
 ```{r}
@@ -486,4 +488,70 @@ kable(data.frame(rmse=rmse, mae=mae), caption="Errors of LASSO 1se model")
 ```
 
 
-# Bootstrapping
+## Bootstrap F-test
+
+Due to heteroskedasticity in our data, we will be employing the bootstrap F-test to answer our research questions.
+
+# Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+To test this hypothesis, we want to test whether the betas for temp:locationseoul and temp:locationwashington_dc are 0.
+```{r}
+getFStat <- function(model, X, L, c) {
+    X = as.matrix(X)
+    ## NOTE 1: beta_naut must be only the values 
+    ##        of the params of interest for the hypothesis test.
+    ## NOTE 2: X must be (IN THE PROPER ORDER) the 
+    ##        numeric columns of the regression 
+    ##        (that you made in part (b), for instance)
+    
+    mod_summary <- summary(model)
+    
+    hat_beta <- mod_summary$coefficients[,1] %>% as.matrix(ncol=1)
+    
+    F_num <- 1/nrow(L) * t(L %*% hat_beta - c) %*% 
+        solve(L %*% solve(t(X) %*% X) %*% t(L)) %*% 
+        (L %*% hat_beta - c)
+    
+    F_denom <- sum(residuals(model)^2) / (nrow(X) - nrow(hat_beta)) 
+    
+    return(F_num / F_denom)
+}
+```
+
+```{r}
+get_p_value_from_bootstrap = function(model, L, c) {
+  B = 3
+  X = model.matrix(model)
+  coefficients = names(model$coefficients)
+  log_cnt = log(df$cnt + 1)
+  X_plus_log_cnt = cbind(X, log_cnt = log_cnt)
+  estimated_c = L %*% summary(model)$coefficients[,1] %>% as.matrix(ncol=1)
+  f_score_to_test = getFStat(model, X, L, c)
+  for (i in 1:B) {
+    set.seed(i)
+    random_rows = sample(1:n, n, replace=TRUE)
+    X_plus_log_cnt_random_sample = X_plus_log_cnt[random_rows, ]
+    lm_bootstrap = lm(log_cnt ~ ., data=as.data.frame(X_plus_log_cnt_random_sample))
+    X_random_sample = subset(X_plus_log_cnt_random_sample, select=-(log_cnt)) # Remove log_cnt
+    bootstrapped_f = getFStat(lm_bootstrap, X_random_sample, L, estimated_c)
+    vect_of_bootstrapped_f_scores[i] = bootstrapped_f
+  }
+  get_p_value_from_bootstrap = sum(vect_of_bootstrapped_f_scores > f_score_to_test[1])
+}
+```
+
+```{r}
+# Get the indices of temp:locationseoul and temp:locationwashington_dc
+coefficients = names(bic_step.model$coefficients)
+idx_temp_seoul = which(coefficients == "temp:locationseoul") #34
+idx_temp_wash = which(coefficients == "temp:locationwashington_dc") #35
+
+L_temp_location = matrix(0, nrow=2, ncol=97)
+L_temp_location[1, idx_temp_seoul] = 1
+L_temp_location[2, idx_temp_wash] = 1
+# linearHypothesis(bic_step.model, L_temp_location)
+# X_bic = model.matrix(bic_step.model)
+# f_score_to_test_temp_location = getFStat(bic_step.model, X_bic, L_temp_location, matrix(c(0, 0), ncol=1))
+p_value_temp_location = get_p_value_from_bootstrap(bic_step.model, L_temp_location, matrix(c(0, 0), ncol=1))
+p_value_temp_location
+```
+
