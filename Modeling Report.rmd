@@ -87,13 +87,6 @@ df$hr = as.character(df$hr)
 kable(head(df), caption = "Preview of data used")
 ```
 
-```{r}
-kable(data.frame(mean=mean(df$cnt), var=var(df$cnt)), caption="Mean and Variance of cnt")
-```
-
-We see that since $mean(cnt)$ is significantly different from $Var(cnt)$, this implies that $cnt$ is not poisson distributed, since for poisson distributions, we expect $mean(X) = Var(X) = \lambda$ if $X \sim Po(\lambda)$. We will however still be testing poisson models because we are working with count-based data, and the poisson distribution is a reasonable distribution to use for arbitrary count based data. We will also be testing normal, log-normal and negative binomial models. The former 2 because they are canonical models which we will provide a baseline performance, and the latter because it is a generalized poisson model.
-
-
 We first test the various models with cross-validation to observe the errors.
 
 ```{r CV Model training}
@@ -326,7 +319,7 @@ ggarrange(
 )
 ```
 
-Here's a closer look at the log-ols model, with the fit against $cnt$ and $log(1+cnt)$ respectively. We observe that besides a mode of errors when $cnt$ is extremely low, the log-ols model has a good fit against $log(cnt+1)$. We see a mode of errors, shown by the straight lines with negative coefficients, that occurs when $cnt$ is extremely low. We observe that our residuals are evenly scattered around the x-axis for our log-normal model, with slight heteroskedasticity.
+Here's a closer look at the log-ols model, with the fit against $cnt$ and $log(1+cnt)$ respectively. We observe that besides a group of errors when $cnt$ is extremely low (seen by the negative downwards sloping lines), the log-ols model has a good fit against $log(cnt+1)$. We see that when $cnt$ is extremely low, our model frequently overpredicts the actual value. Our residuals are evenly scattered around the x-axis for our log-normal model, with slight heteroskedasticity.
 
 ```{r}
 generate_df_log_models_logcnt = function(model) {
@@ -356,6 +349,7 @@ ggarrange(
 
 
 ```
+
 # Model Selection
 
 In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables from the log-ols model. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a log normal distribution is true.
