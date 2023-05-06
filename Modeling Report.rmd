@@ -442,7 +442,7 @@ Forward selection does not shrink the model at all, while backwards and bidirect
 all_coeff_names = names(full.model$coefficients)
 bic_coeff_names_both = names(bic_step_both.model$coefficients)
 aic_coeff_names_both = names(aic_step_both.model$coefficients)
-setdiff(all_coeff_names, bic_coeff_names)
+setdiff(all_coeff_names, bic_coeff_names_both)
 ```
 The selection criteria means that the triple interaction term of $temp*hr*isWorkday$ is removed. The resulting model is:
 
@@ -453,7 +453,7 @@ summary(bic_step_both.model)
 Most of our covariates have very significant coefficients, but we note that the following covariates do not have significant p-values. We will run a F-test to determine if they are significant as a group. 
 
 ```{r}
-pvals = summary(bic_step.model)$coefficients[, 4]
+pvals = summary(bic_step_both.model)$coefficients[, 4]
 pvals = pvals[pvals >= 0.1]
 kable(data.frame(pvals), caption="Insignificant Coefficients")
 ```
