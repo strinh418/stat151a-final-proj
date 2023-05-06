@@ -550,4 +550,4 @@ p_value_temp_location = get_p_value_from_bootstrap(bic_step.model, L_temp_locati
 p_value_temp_location
 ```
 
-Since the p value from bootstrap is 0, we see that the interaction term temp*location is significant, proving that our hypothesis was right.
+Since the p value from bootstrap is 0, we see that the interaction term $temp*location$ is significant, proving that our hypothesis was right.
