@@ -54,7 +54,7 @@ ii. Maintenance: Our findings could help bike sharing companies predict the expe
 
 ## Primary focus
 
-Our primary focus is prediction accuracy. We will not be focusing on causal inference as we would have to control for confounding variables, and these confounding variables may not be captured in our datasets.
+Our primary focus is causal inference. We aim to figure out what are the factors most likely to affect the count of bike users.
 
 \newpage
 
@@ -486,8 +486,6 @@ kable(data.frame(rmse=rmse, mae=mae), caption="Errors of LASSO 1se model")
 
 Due to heteroskedasticity in our data, we will be employing the bootstrap F-test to answer our research questions.
 
-# Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
-To test this hypothesis, we want to test whether the betas for temp:locationseoul and temp:locationwashington_dc are 0.
 ```{r}
 getFStat <- function(model, X, L, c) {
     X = as.matrix(X)
@@ -513,7 +511,7 @@ getFStat <- function(model, X, L, c) {
 
 ```{r}
 get_p_value_from_bootstrap = function(model, L, c) {
-  B = 3
+  B = 1000
   X = model.matrix(model)
   coefficients = names(model$coefficients)
   log_cnt = log(df$cnt + 1)
@@ -529,9 +527,12 @@ get_p_value_from_bootstrap = function(model, L, c) {
     bootstrapped_f = getFStat(lm_bootstrap, X_random_sample, L, estimated_c)
     vect_of_bootstrapped_f_scores[i] = bootstrapped_f
   }
-  get_p_value_from_bootstrap = sum(vect_of_bootstrapped_f_scores > f_score_to_test[1])
+  get_p_value_from_bootstrap = sum(vect_of_bootstrapped_f_scores > f_score_to_test[1]) / B
 }
 ```
+
+# Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+To test this hypothesis, we want to test whether the betas for temp:locationseoul and temp:locationwashington_dc are 0.
 
 ```{r}
 # Get the indices of temp:locationseoul and temp:locationwashington_dc
@@ -548,4 +549,4 @@ L_temp_location[2, idx_temp_wash] = 1
 p_value_temp_location = get_p_value_from_bootstrap(bic_step.model, L_temp_location, matrix(c(0, 0), ncol=1))
 p_value_temp_location
 ```
-
+Since the p value from bootstrap is very close to 0, we see that the interaction term temp*location is significant, proving that our hypothesis was right.
