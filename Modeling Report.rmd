@@ -75,7 +75,7 @@ Regarding additional features and data that we believe would be useful for analy
 
 # Modeling Tool Assumptions
 
-# Model Selection
+# Testing GLMs
 
 Shown below is the data that we are using for our analysis. Our data consists of 43,553 rows.
 
@@ -89,6 +89,7 @@ kable(head(df), caption = "Preview of data used")
 ```{r}
 kable(data.frame(mean=mean(df$cnt), var=var(df$cnt)), caption="Mean and Variance of cnt")
 ```
+
 We see that since $mean(cnt)$ is significantly different from $Var(cnt)$, this implies that $cnt$ is not poisson distributed, since for poisson distributions, we expect $mean(X) = Var(X) = \lambda$ if $X \sim Po(\lambda)$. We will however still be testing poisson models because we are working with count-based data, and the poisson distribution is a reasonable distribution to use for arbitrary count based data. We will also be testing normal, log-normal and negative binomial models. The former 2 because they are canonical models which we will provide a baseline performance, and the latter because it is a generalized poisson model.
 
 
@@ -270,7 +271,9 @@ kable(summary_df, caption="Full Data Train Results")
 ```
 
 
-Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. The log-ols models gives us the best log-likelihood and MAE providing us justification for choosing this over the other models in our further analysis. The following plots show us the relationship between predicted values and residuals. We observe that residuals are not evenly scattered about 0.
+Again, we see that when training on full data, the RMSE (and log-likelihood) of the complex models are better than that of the simpler models. An interesting observation is that even though the RMSE of the poisson models are better than the equivalent negative binomial models, they have much worse log-likelihoods, approx 10x worse. Due to the extremely poor log-likelihood of the poisson model, we will not be using it for further analysis, although we will still investigate the fit of this model.
+
+The best performing model based on log-likelihood is the log-ols model, by a significant margin. It also has the best RMSE and MAE of the models excluding the poisson models. This provides us justification for choosing this over the other models in our further analysis. The following plots show us the relationship between predicted values and residuals. We observe that residuals are not evenly scattered about 0.
 
 ```{r}
 myPalette = colorRampPalette(rev(brewer.pal(11, "RdYlGn")))
@@ -352,19 +355,44 @@ ggarrange(
 
 
 ```
+# Model Selection
 
-
-In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a log normal distribution is true.
+In the following, we apply both AIC and BIC model selection (both backwards and forwards) to select for a sparser set of variables from the log-ols model. We expect BIC to give us a sparser model because the penalty term of BIC scales with the number of parameters in the model, but AIC does not. Note that both AIC and BIC require a likelihood distribution of our coefficient vector, $\beta$, hence the methods we are currently applying are valid only if our assumption that our data follows a log normal distribution is true.
 
 ```{r, echo=FALSE, results='hide', message=FALSE}
 full.model = lm(log(cnt + 1) ~ . + temp*location*season + temp*hr*is_workday, data = df)
-bic_step.model = stepAIC(
+
+bic_step_forward.model = stepAIC(
+  full.model, 
+  direction = "forward",
+  k = log(nrow(df)),
+  trace = TRUE
+)
+aic_step_forward.model = stepAIC(
+  full.model, 
+  direction = "forward",
+  trace = TRUE
+)
+
+bic_step_backward.model = stepAIC(
+  full.model, 
+  direction = "backward",
+  k = log(nrow(df)),
+  trace = TRUE
+)
+aic_step_backward.model = stepAIC(
+  full.model, 
+  direction = "backward",
+  trace = TRUE
+)
+
+bic_step_both.model = stepAIC(
   full.model, 
   direction = "both",
   k = log(nrow(df)),
   trace = TRUE
 )
-aic_step.model = stepAIC(
+aic_step_both.model = stepAIC(
   full.model, 
   direction = "both",
   trace = TRUE
@@ -372,28 +400,54 @@ aic_step.model = stepAIC(
 ```
 ```{r}
 num_coeffs_df = data.frame(
-  model = c("full", "bic_bidirectional", "aic_bidirectional"),
+  model = c("full", 
+            "bic_forward", 
+            "aic_forward", 
+            "bic_backward", 
+            "aic_backward", 
+            "bic_bidirectional", 
+            "aic_bidirectional"),
   num_coeff = c(
     size(full.model$coefficients)[2],
-    size(bic_step.model$coefficients)[2],
-    size(aic_step.model$coefficients)[2]
+    size(bic_step_forward.model$coefficients)[2],
+    size(aic_step_forward.model$coefficients)[2],
+    size(bic_step_backward.model$coefficients)[2],
+    size(aic_step_backward.model$coefficients)[2],
+    size(bic_step_both.model$coefficients)[2],
+    size(aic_step_both.model$coefficients)[2]
   )
 )
-kable(num_coeffs_df)
+kable(num_coeffs_df, caption="Number of coefficients after selection")
+
+generate_errors = function(model) {
+  preds = exp(predict(model, df)) - 1
+  actuals = df$cnt
+  return(data.frame(rmse=sqrt(mean((preds - actuals)^2)), mae=mean(abs(preds - actuals))))
+}
+
+full_errors = generate_errors(full.model)
+reduced_model_errors = generate_errors(aic_step_both.model)
+
+kable(data.frame(
+  model=c("full", "reduced"), 
+  rmse=c(full_errors$rmse, reduced_model_errors$rmse),
+  mae=c(full_errors$mae, reduced_model_errors$mae)
+  ),
+  caption="Errors of models")
 ```
 
-The AIC and BIC model both shrink the model by the same 23 parameters. The parameters removed are:
+Forward selection does not shrink the model at all, while backwards and bidirectional selection shrinks both the AIC and BIC model by the same 23 parameters. The parameters removed are:
 
 ```{r}
 all_coeff_names = names(full.model$coefficients)
-bic_coeff_names = names(bic_step.model$coefficients)
-aic_coeff_names = names(aic_step.model$coefficients)
+bic_coeff_names_both = names(bic_step_both.model$coefficients)
+aic_coeff_names_both = names(aic_step_both.model$coefficients)
 setdiff(all_coeff_names, bic_coeff_names)
 ```
 The selection criteria means that the triple interaction term of $temp*hr*isWorkday$ is removed. The resulting model is:
 
 ```{r}
-summary(bic_step.model)
+summary(bic_step_both.model)
 ```
 
 Most of our covariates have very significant coefficients, but we note that the following covariates do not have significant p-values. We will run a F-test to determine if they are significant as a group. 
@@ -404,3 +458,32 @@ pvals = pvals[pvals >= 0.1]
 kable(data.frame(pvals), caption="Insignificant Coefficients")
 ```
 
+We also test variable selection with LASSO. Choosing $\lambda_{1\sigma}$, we find that lasso shrinks the model by the following 48 variables.
+
+```{r}
+X = model.matrix(full.model)
+y = log(1 + df$cnt)
+cv_model = cv.glmnet(X, y, alpha=1, standardize = TRUE)
+lasso_1se_model = glmnet(x=X, y=y, lambda = cv_model$lambda.1se, standardize = TRUE)
+zeroed_variables = c()
+for (x in 1:120) {
+  if (lasso_1se_model$beta[x] == 0) {
+    zeroed_variables = c(zeroed_variables, x)
+  }
+}
+row.names(lasso_1se_model$beta)[zeroed_variables]
+```
+However, this model shrinkage does not result in an easily understood model, and as seen below, the errors are significantly worse than the errors of the models selected by AIC/BIC. We will therefore not use this model.
+
+```{r}
+preds = predict(lasso_1se_model, newx=X)
+actuals = y
+resids = preds - actuals
+rmse = sqrt(mean((exp(preds) - 1 - actuals)^2))
+mae = mean(abs(exp(preds) - 1 - actuals))
+
+kable(data.frame(rmse=rmse, mae=mae), caption="Errors of LASSO 1se model")
+```
+
+
+# Bootstrapping
