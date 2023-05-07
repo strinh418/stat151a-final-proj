@@ -31,34 +31,25 @@ knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
 
 # Introduction
 
-We plan to analyze various datasets related to bike sharing data from different geographical locations (e.g. Seoul, Washington D.C., London etc) which contains information about the number of bikes rented on different days, along with weather conditions (temperature, humidity, etc) and miscellaneous information about the day these bikes were rented (weekends, holidays, etc).
+For our project, we analyzed various datasets related to bike sharing data from different geographical locations (e.g. Seoul, Washington D.C., London etc) containing information about the number of bikes rented on different days, along with weather conditions (temperature, humidity, etc) and miscellaneous information about the day these bikes were rented (weekends, holidays, etc).
 
 ## Research question
 
 The question we wish to answer using these datasets, is what various variables/factors can be used to predict the number of bikes that will be rented on a given day.
 
-We also want to test the following hypotheses:
+We also want to test the following hypotheses (since the test procedure for the hypotheses are similar, ie nonparametric bootstrap F-test, we will only be testing a few main ones):
 
 -   Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
--   How does $\beta_{isWorkday}$ differ in different locations?
--   Which is the most significant $\beta$? We expect it to be $\beta_{temp}$, but expect $\beta_{windspeed}$ to be significant too.
--   Does the number of bike users follow any "common" distribution? We expect it to follow a discrete probability distribution
+-   Are any of the betas insignificant when tested as a group? We will test this after model selection
+-   Does the number of bike users follow any "common" distribution? We expect the ols model to be a poor fit, and that it follows a discrete probability distribution
 
-## Practical Decisions
-
-Our findings could help inform bike sharing companies into making better economic decisions.
-
-i.  Marketing decisions: A better understanding of the factors that affect number of users can provide valuable insights into marketing decisions, such as discounts and promotions. Companies can offer discounts during off-peak times or inclement weather to encourage greater usage.
-
-ii. Maintenance: Our findings could help bike sharing companies predict the expected mileage (and thus wear-and-tear) on the bikes ahead of time. It can also help them in finding the right timeslots (i.e a period where bike demand is not too high) to conduct their maintenance. Both of these factors aid them in scheduling their maintenance.
+Our findings could help inform bike sharing companies into making better economic decisions in regards to improving marketing decisions, scheduling, and conducting maintenance.
 
 ## Primary focus
 
-Our primary focus is causal inference. We aim to figure out what are the factors most likely to affect the count of bike users.
+Our primary focus is causal inference. We aim to figure out what are the factors most likely to affect the count of bike users. We will use nonparametric bootstrap F-tests to achieve this goal.
 
-\newpage
-
-# Data Overview
+## Data Overview
 
 We are using the following datasets (each bullet-point is a hyperlink) for data exploration and modeling:
 
@@ -66,15 +57,49 @@ We are using the following datasets (each bullet-point is a hyperlink) for data 
 -   [Seoul Bike Sharing Demand Data Set (2017-2018)](https://archive.ics.uci.edu/ml/datasets/Seoul+Bike+Sharing+Demand#)
 -   [London bike sharing dataset (2015-2017)](https://www.kaggle.com/datasets/hmavrodiev/london-bike-sharing-dataset)
 
-Each dataset contains the hourly count of rental bikes on each specific date, with additional information on weather and holiday schedules. Each observation corresponds to an hour of the day, resulting in observations being dependent on each other. Working with time series data will be one of the challenges of working with these datasets for linear modeling, but we plan to lessen the effects of dependence between observations by treating "hour" as a categorical variable.
+Each dataset contains the hourly count of rental bikes on each specific date, with additional information on weather and holiday schedules. Each observation corresponds to an hour of the day.
 
-It would probably be difficult for modeling on this data to be generalizable to a larger population and be applicable to other locations since the popularity of bike sharing and general trends varies across locations in a way that cannot be captured within the model. Working with these datasets will likely only provide us with a model appropriate specifically for Washington D.C, Seoul, and London.
+## Modeling Introduction
+We will be utilizing model selection techniques (CV, AIC/BIC) and shrinkage methods (LASSO) to improve our model fit. We will also be testing various GLM fits (motivations for this listed below) and will be using bootstrapped F-testing to answer the research questions listed above.
 
-Regarding additional features and data that we believe would be useful for analysis and modeling, we think that the inclusion of additional weather data like precipitation could be useful in improving the model. This is because it would make sense for the amount of rainfall to impact the number of people choosing to utilize rental bikes on a particular day. However, since not all the datasets we are using contain precipitation data, we are not currently planning to utilize rainfall as a feature in developing our model.
+We will be modeling our data using either a negative binomial, poisson distribution or log-normal distribution.
 
-# Modeling Tool Motivations
+The OLS model is not a good fit for our data because in our EDA, since we observed heteroscedasticity. In particular, it appears that the variance of count in each month increases as mean increases. Furthermore, our project deals with count–based data, while OLS predictions are typically continuous. Therefore, we believe that it might be more appropriate to use a negative binomial or poisson distribution to model our data. We will also test log-normal distributions because it is possible that the transformed data might be normal, and the variance of log(cnt) are fairly homoscedastic. 
+
+We will compare all the models by studying the RMSE and log-likelihood of the fitted models.
 
 # Modeling Tool Assumptions
+![](eda_plot.png)
+## Assumptions for Distributions
+### OLS/log-OLS Assumptions
+
+- Homoscedastic normal random errors
+- Response variable is linear with respect to our data
+- Continuous response variable
+
+### Poisson Assumptions
+
+- Modeling count data (response variable is non-negative integers)
+- Conditioning on all the covariates, the response variable (count in our project) should have equal mean and variance. ^[We note that this hypothesis is hard to test in our project. Due to the presence of continuous variables (temp, hum, windspeed), when we group the rows by all covariates, we find that none or almost none of the rows have the exact same values for all covariates. We cannot construct a distribution using only one (or very few) data point(s)].
+- There is a linear relationship between the covariates and log(count).
+
+### Negative Binomial Assumptions
+
+- Similar assumptions to a poisson model, since the poisson distribution is just a special case of the negative binomial distribution
+- Does not make the assumption that the variance of the response variable is equal to the mean, but rather that the variance is proportional to the mean in addition to the inclusion of a dispersion parameter. This more general model might give us a better fit to our data.
+
+### Shared Assumptions
+For all models, we must ensure the assumption of independence of rows, or independence of different observations, which motivates our decision to treat “hour” as categorical data to remove the row dependence associated with time series data.
+
+## Assumptions for model selection and shrinkage methods
+### AIC/BIC assumptions
+AIC and BIC are selection criterias based on the likelihood of the models, therefore the underlying assumption is that our data does indeed follow the probability distribution used in our model. The difference between AIC and BIC is that BIC penalizes the number of parameters more heavily than AIC, hence it will result in a more parsimonious model.
+
+### CV/LASSO
+CV does not assume anything of our data, and is the most flexible approach, and is an approach meant to minimize the error metric that we define (in this case, the MSE). Lasso also does not assume much about our data and also aims to minimize the MSE, but with an added L1 regularization term on our parameters. Both CV and LASSO cannot tell us anything about the likelihood of our model being correct. 
+
+### Assumptions of bootstrap and F-tests
+In employing the nonparametric bootstrap F-test, we do not make any assumption about the distribution of the population data, but we assume that our data is representative of the population data. This could be a reasonable assumption as our sample size (>43k) is relatively large.
 
 # Testing GLMs
 
@@ -510,14 +535,15 @@ getFStat <- function(model, X, L, c) {
 ```
 
 ```{r}
-get_p_value_from_bootstrap = function(model, L, c) {
-  B = 1000
+get_p_value_from_bootstrap = function(model, L, c, B=1000) {
   X = model.matrix(model)
+  n = nrow(df)
   coefficients = names(model$coefficients)
   log_cnt = log(df$cnt + 1)
   X_plus_log_cnt = cbind(X, log_cnt = log_cnt)
   estimated_c = L %*% summary(model)$coefficients[,1] %>% as.matrix(ncol=1)
   f_score_to_test = getFStat(model, X, L, c)
+  vect_of_bootstrapped_f_scores <- rep(0, B)
   for (i in 1:B) {
     set.seed(i)
     random_rows = sample(1:n, n, replace=TRUE)
@@ -531,23 +557,54 @@ get_p_value_from_bootstrap = function(model, L, c) {
 }
 ```
 
-# Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+### Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
 To test this hypothesis, we want to test whether the betas for temp:locationseoul and temp:locationwashington_dc are 0.
 
 ```{r}
 # Get the indices of temp:locationseoul and temp:locationwashington_dc
-coefficients = names(bic_step.model$coefficients)
+coefficients = names(bic_step_both.model$coefficients)
 idx_temp_seoul = which(coefficients == "temp:locationseoul") #34
 idx_temp_wash = which(coefficients == "temp:locationwashington_dc") #35
 
 L_temp_location = matrix(0, nrow=2, ncol=97)
 L_temp_location[1, idx_temp_seoul] = 1
 L_temp_location[2, idx_temp_wash] = 1
-# linearHypothesis(bic_step.model, L_temp_location)
-# X_bic = model.matrix(bic_step.model)
-# f_score_to_test_temp_location = getFStat(bic_step.model, X_bic, L_temp_location, matrix(c(0, 0), ncol=1))
-p_value_temp_location = get_p_value_from_bootstrap(bic_step.model, L_temp_location, matrix(c(0, 0), ncol=1))
+# linearHypothesis(bic_step_both.model, L_temp_location)
+# X_bic = model.matrix(bic_step_both.model)
+# f_score_to_test_temp_location = getFStat(bic_step_both.model, X_bic, L_temp_location, matrix(c(0, 0), ncol=1))
+p_value_temp_location = get_p_value_from_bootstrap(bic_step_both.model, L_temp_location, matrix(c(0, 0), ncol=1))
 p_value_temp_location
 ```
 
 Since the p value from bootstrap is 0, we see that the interaction term $temp*location$ is significant, proving that our hypothesis was right.
+
+### Question 2: Are the betas from our model that had low p-values insignificant when tested as a group?
+``` {r}
+# Get the indices of the insignificant coefficients listed previously
+coefficients = names(bic_step_both.model$coefficients)
+idx_hr21 = which(coefficients == "hr21") # 20
+idx_hr22 = which(coefficients == "hr22") # 21
+idx_summer = which(coefficients == "seasonsummer") #32
+idx_temp_wash = which(coefficients == "temp:locationwashington_dc") #35
+idx_temp_summer = which(coefficients == "temp:seasonsummer") #37
+idx_temp_winter = which(coefficients == "temp:seasonwinter") #38
+idx_temp_hr18 = which(coefficients == "temp:hr18") #54
+idx_temp_hr23 = which(coefficients == "temp:hr23") #60
+indices = c(idx_hr21, idx_hr22, idx_summer, idx_temp_wash, idx_temp_summer, idx_temp_winter, idx_temp_hr18, idx_temp_hr23)
+
+L_insig_coeffs = matrix(0, nrow=8, ncol=97)
+for (i in 1:8) {
+  L_insig_coeffs[i, indices[i]] = 1
+}
+p_value_insig_coeffs = get_p_value_from_bootstrap(bic_step_both.model, L_insig_coeffs, matrix(rep(0, 8), ncol=1))
+p_value_insig_coeffs
+```
+
+Seeing that the p value from bootstrap is 0, we can also conclude that the the beta values $\beta_{hr21}$, $\beta_{hr22}$, $\beta_{seasonsummer}$, $\beta_{temp:locationwashington_dc}$, $\beta_{temp:seasonsummer}$, $\beta_{temp:seasonwinter}$, $\beta_{temp:hr18}$, $\beta_{temp:hr23}$ are significant as a group and reject the null hypothesis that all these coefficients are actually 0.
+
+# Conclusion
+It is not surprising that the negative binomial distribution is a better fit than the ols model, but it is somewhat surprising that our data follows the log normal distribution more closely than both the poisson and negative binomial distributions. However, this is still reasonable since the log normal model also always gives us non-negative values, unlike the ols model.
+
+One mode of errors observed in the log-ols model is that when the actual values are extremely low, but the model still predicts high values. We could possibly address this issue by implementing a 2 stage model, the first stage being a logistic regression to determine whether the actual output should be below some threshold value, and the second stage being the models we tested. We did preliminary testing of this approach, and found that logistic regression works poorly, and more sophisticated methods might be required.
+
+In regards to our research questions, we were able to conclude that our hypothesis that $\beta_{temp}$ is different in different locations, at least for the fall season by using a nonparametric bootstrap f-test to determine that the interaction terms $\beta_{temp:locationseoul}$ and $\beta_{temp:locationwashington_dc}$ are not 0. We also were able to conclude with a nonparametric bootstrap f-test that the covariates found to be insignificant in the model selected by BIC bidirectional selection are actually in fact significant as a group.
