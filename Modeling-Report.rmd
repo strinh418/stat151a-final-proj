@@ -70,12 +70,15 @@ We will compare all the models by studying the RMSE and log-likelihood of the fi
 
 # Modeling Tool Assumptions
 ![](eda_plot.png)
+
 ## Assumptions for Distributions
+
 ### OLS/log-OLS Assumptions
 
 - Homoscedastic normal random errors
 - Response variable is linear with respect to our data
 - Continuous response variable
+- We observe that variance of log-normal model is quite similar across months (figure above)
 
 ### Poisson Assumptions
 
