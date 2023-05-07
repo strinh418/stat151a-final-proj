@@ -572,11 +572,9 @@ idx_temp_wash = which(coefficients == "temp:locationwashington_dc") #35
 L_temp_location = matrix(0, nrow=2, ncol=97)
 L_temp_location[1, idx_temp_seoul] = 1
 L_temp_location[2, idx_temp_wash] = 1
-# linearHypothesis(bic_step_both.model, L_temp_location)
-# X_bic = model.matrix(bic_step_both.model)
-# f_score_to_test_temp_location = getFStat(bic_step_both.model, X_bic, L_temp_location, matrix(c(0, 0), ncol=1))
+
 p_value_temp_location = get_p_value_from_bootstrap(bic_step_both.model, L_temp_location, matrix(c(0, 0), ncol=1))
-p_value_temp_location
+disp(paste("P value of F-test temp:locationseoul = temp:locationwashington_dc = 0:", as.character(p_value_temp_location)))
 ```
 
 Since the p value from bootstrap is 0, we see that the interaction term $temp*location$ is significant, proving that our hypothesis was right.
@@ -600,7 +598,7 @@ for (i in 1:8) {
   L_insig_coeffs[i, indices[i]] = 1
 }
 p_value_insig_coeffs = get_p_value_from_bootstrap(bic_step_both.model, L_insig_coeffs, matrix(rep(0, 8), ncol=1))
-p_value_insig_coeffs
+disp(paste("P value of F-test all insignficant betas = 0:", as.character(p_value_insig_coeffs)))
 ```
 
 Seeing that the p value from bootstrap is 0, we can also conclude that the the beta values $\beta_{hr21}$, $\beta_{hr22}$, $\beta_{seasonsummer}$, $\beta_{temp:locationwashington_dc}$, $\beta_{temp:seasonsummer}$, $\beta_{temp:seasonwinter}$, $\beta_{temp:hr18}$, $\beta_{temp:hr23}$ are significant as a group and reject the null hypothesis that all these coefficients are actually 0.
@@ -610,4 +608,4 @@ It is not surprising that the negative binomial distribution is a better fit tha
 
 One mode of errors observed in the log-ols model is that when the actual values are extremely low, but the model still predicts high values. We could possibly address this issue by implementing a 2 stage model, the first stage being a logistic regression to determine whether the actual output should be below some threshold value, and the second stage being the models we tested. We did preliminary testing of this approach, and found that logistic regression works poorly, and more sophisticated methods might be required.
 
-In regards to our research questions, we were able to conclude that our hypothesis that $\beta_{temp}$ is different in different locations, at least for the fall season by using a nonparametric bootstrap f-test to determine that the interaction terms $\beta_{temp:locationseoul}$ and $\beta_{temp:locationwashington_dc}$ are not 0. We also were able to conclude with a nonparametric bootstrap f-test that the covariates found to be insignificant in the model selected by BIC bidirectional selection are actually in fact significant as a group.
+In regards to our research questions, we were able to conclude that our hypothesis that $\beta_{temp}$ is different in different locations, at least for the fall season by using a nonparametric bootstrap f-test to determine that the interaction terms $\beta_{temp:locationseoul}$ and $\beta_{temp:locationwashingtonDC}$ are not 0. We also were able to conclude with a nonparametric bootstrap f-test that the covariates found to be insignificant in the model selected by BIC bidirectional selection are actually in fact significant as a group.
