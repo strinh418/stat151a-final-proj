@@ -510,14 +510,14 @@ getFStat <- function(model, X, L, c) {
 ```
 
 ```{r}
-get_p_value_from_bootstrap = function(model, L, c) {
-  B = 1000
+get_p_value_from_bootstrap = function(model, L, c, B=1000) {
   X = model.matrix(model)
   coefficients = names(model$coefficients)
   log_cnt = log(df$cnt + 1)
   X_plus_log_cnt = cbind(X, log_cnt = log_cnt)
   estimated_c = L %*% summary(model)$coefficients[,1] %>% as.matrix(ncol=1)
   f_score_to_test = getFStat(model, X, L, c)
+  vect_of_bootstrapped_f_scores <- rep(0, B)
   for (i in 1:B) {
     set.seed(i)
     random_rows = sample(1:n, n, replace=TRUE)
@@ -531,7 +531,7 @@ get_p_value_from_bootstrap = function(model, L, c) {
 }
 ```
 
-# Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+### Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
 To test this hypothesis, we want to test whether the betas for temp:locationseoul and temp:locationwashington_dc are 0.
 
 ```{r}
@@ -551,3 +551,27 @@ p_value_temp_location
 ```
 
 Since the p value from bootstrap is 0, we see that the interaction term $temp*location$ is significant, proving that our hypothesis was right.
+
+### Question 2: Are the betas from our model that had low p-values insignificant when tested as a group?
+``` {r}
+# Get the indices of the insignificant coefficients listed previously
+coefficients = names(bic_step.model$coefficients)
+idx_hr21 = which(coefficients == "hr21") # 20
+idx_hr22 = which(coefficients == "hr22") # 21
+idx_summer = which(coefficients == "seasonsummer") #32
+idx_temp_wash = which(coefficients == "temp:locationwashington_dc") #35
+idx_temp_summer = which(coefficients == "temp:seasonsummer") #37
+idx_temp_winter = which(coefficients == "temp:seasonwinter") #38
+idx_temp_hr18 = which(coefficients == "temp:hr18") #54
+idx_temp_hr23 = which(coefficients == "temp:hr23") #60
+indices = c(idx_hr21, idx_hr22, idx_summer, idx_temp_wash, idx_temp_summer, idx_temp_winter, idx_temp_hr18, idx_temp_hr23)
+
+L_insig_coeffs = matrix(0, nrow=8, ncol=97)
+for (i in 1:8) {
+  L_insig_coeffs[i, indices[i]] = 1
+}
+p_value_insig_coeffs = get_p_value_from_bootstrap(bic_step.model, L_insig_coeffs, matrix(rep(0, 8), ncol=1))
+p_value_insig_coeffs
+```
+
+Seeing that the p value from bootstrap is 0, we can also conclude that the the beta values $\beta_{hr21}$, $\beta_{hr22}$, $\beta_{seasonsummer}$, $\beta_{temp:locationwashington_dc}$, $\beta_{temp:seasonsummer}$, $\beta_{temp:seasonwinter}$, $\beta_{temp:hr18}$, $\beta_{temp:hr23}$ are significant as a group and reject the null hypothesis that all these coefficients are actually 0.
