@@ -62,13 +62,23 @@ Each dataset contains the hourly count of rental bikes on each specific date, wi
 ## Modeling Introduction
 We will be utilizing model selection techniques (CV, AIC/BIC) and shrinkage methods (LASSO) to improve our model fit. We will also be testing various GLM fits (motivations for this listed below) and will be using bootstrapped F-testing to answer the research questions listed above.
 
-We will be modeling our data using either a negative binomial, poisson distribution or log-normal distribution.
+We will be modeling our data using the negative binomial, poisson distribution and log-normal distributions.
 
-The OLS model is not a good fit for our data because in our EDA, since we observed heteroscedasticity. In particular, it appears that the variance of count in each month increases as mean increases. Furthermore, our project deals with count–based data, while OLS predictions are typically continuous. Therefore, we believe that it might be more appropriate to use a negative binomial or poisson distribution to model our data. We will also test log-normal distributions because it is possible that the transformed data might be normal, and the variance of log(cnt) are fairly homoscedastic. 
+### Motivation for Modeling Tools
+
+### Motivation for GLMs
+In our EDA, we observed heteroscedasticity in our data, and therefore concluded that the OLS model would not be a good fit for our data. We believe there are reasonable grounds to attempt to model our data using a poisson or negative binomial due to two main reasons. Firstly, our project deals with count-based data. Secondly, in our EDA, we observed that the variance of count in each month increases as mean increases, so a poisson or negative binomial model should fit our data better than an OLS model.
+With that said, we will also test log-normal distributions because it is possible that the transformed data might be normal, and the variance of log(cnt) are fairly homoscedastic. In fact, after running our tests, the log-ols model has better RMSE and log-likelihood than the poisson and negative binomial models.
 
 ![](eda_plot.png)
 
-We will compare all the models by studying the RMSE and log-likelihood of the fitted models.
+
+### Motivation for Model Selection
+The inclusion of triple interaction terms in our full model means that all related double interaction terms are also in the model, which might lead to the model having many unrequired terms. Additionally, the triple interaction terms might also not be needed in our model. Since it is difficult to determine heuristically what terms are important and what are not, given the large number of terms in the model, we will use model selection methods (AIC/BIC and CV) to select the variables to be included in the model. We will also be testing LASSO as a form of model selection, and comparing this against the models selected by AIC/BIC. We note that CV and LASSO are assumption-free model selection criterias, and AIC/BIC relies on our data following the assumed probability distribution. Our end goal is an interpretable model with reasonable performance that can be applied for inference.
+
+### Motivation for Nonparametric Bootstrap F-test
+The nonparametric bootstrap will be employed on the log-ols model for parametric inference, since we found it to be the model with the best RMSE and log-likelihood after fitting our data. The main reason for using this is because the nonparametric bootstrap makes no assumption about the distribution of our data. A normal F-test might not be reliable because the EDA plot above suggests that even in the log-ols model, there still exists some heteroskedasticity.
+
 
 # Modeling Tool Assumptions
 
