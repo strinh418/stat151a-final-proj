@@ -39,7 +39,7 @@ The question we wish to answer using these datasets, is what various variables/f
 
 We also want to test the following hypotheses (since the test procedure for the hypotheses are similar, ie nonparametric bootstrap F-test, we will only be testing a few main ones):
 
--   Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+-   Is the effect of temperature different across the locations? We expect people in different areas to have different temperature preferences.
 -   Are any of the betas insignificant when tested as a group? We will test this after model selection
 -   Does the number of bike users follow any "common" distribution? We expect the ols model to be a poor fit, and that it follows a discrete probability distribution
 
@@ -66,10 +66,12 @@ We will be modeling our data using either a negative binomial, poisson distribut
 
 The OLS model is not a good fit for our data because in our EDA, since we observed heteroscedasticity. In particular, it appears that the variance of count in each month increases as mean increases. Furthermore, our project deals with count–based data, while OLS predictions are typically continuous. Therefore, we believe that it might be more appropriate to use a negative binomial or poisson distribution to model our data. We will also test log-normal distributions because it is possible that the transformed data might be normal, and the variance of log(cnt) are fairly homoscedastic. 
 
+![](eda_plot.png)
+
 We will compare all the models by studying the RMSE and log-likelihood of the fitted models.
 
 # Modeling Tool Assumptions
-![](eda_plot.png)
+
 
 ## Assumptions for Distributions
 
@@ -544,7 +546,7 @@ getFStat <- function(model, X, L, c) {
 ```
 
 ```{r}
-get_p_value_from_bootstrap = function(model, L, c, B=1000) {
+run_bootstrap = function(model, L, c, B=1000) {
   X = model.matrix(model)
   n = nrow(df)
   coefficients = names(model$coefficients)
@@ -562,11 +564,12 @@ get_p_value_from_bootstrap = function(model, L, c, B=1000) {
     bootstrapped_f = getFStat(lm_bootstrap, X_random_sample, L, estimated_c)
     vect_of_bootstrapped_f_scores[i] = bootstrapped_f
   }
-  get_p_value_from_bootstrap = sum(vect_of_bootstrapped_f_scores > f_score_to_test[1]) / B
+  p_val = sum(vect_of_bootstrapped_f_scores > f_score_to_test[1]) / B
+  run_bootstrap = list(vect=vect_of_bootstrapped_f_scores, f_score_to_test=f_score_to_test, p=p_val)
 }
 ```
 
-### Question 1: Is $\beta_{temp}$ different in different locations? We expect people in different areas to have different temperature preferences.
+### Question 1: Is the effect of temperature different across the locations? We expect people in different areas to have different temperature preferences.
 To test this hypothesis, we want to test whether the betas for temp:locationseoul and temp:locationwashington_dc are 0.
 
 ```{r}
@@ -579,13 +582,27 @@ L_temp_location = matrix(0, nrow=2, ncol=97)
 L_temp_location[1, idx_temp_seoul] = 1
 L_temp_location[2, idx_temp_wash] = 1
 
-p_value_temp_location = get_p_value_from_bootstrap(bic_step_both.model, L_temp_location, matrix(c(0, 0), ncol=1))
+test1_bootstrap_res = run_bootstrap(bic_step_both.model, L_temp_location, matrix(c(0, 0), ncol=1))
+
+# Visualize bootstrap
+test1_vect_of_f_scores = test1_bootstrap_res$vect
+
+ggplot(data.frame(F_scores=test1_vect_of_f_scores), aes(x=F_scores)) + geom_histogram() + geom_vline(xintercept=test1_bootstrap_res$f_score_to_test,color="red")
+
+# Display p value
+p_value_temp_location = test1_bootstrap_res$p
 disp(paste("P value of F-test temp:locationseoul = temp:locationwashington_dc = 0:", as.character(p_value_temp_location)))
 ```
+```{r Plot of bootstrap distribution}
+# test1_vect_of_f_scores = test1_bootstrap_res$vect
+# 
+# ggplot(data.frame(F_scores=test1_vect_of_f_scores), aes(x=F_scores)) + geom_histogram() + geom_vline(xintercept=test1_bootstrap_res$f_score_to_test,color="red")
+```
+In the plot, the red vertical line represents $F(\hat{\beta}, \beta_0)$, which has a value of 289.8147 and is far away from the values of $(F(\hat{\beta_1}, \hat{\beta}), F(\hat{\beta_2}, \hat{\beta}),...,F(\hat{\beta_B}, \hat{\beta}))$.
 
-Since the p value from bootstrap is 0, we see that the interaction term $temp*location$ is significant, proving that our hypothesis was right.
+Our p value from bootstrap (setting B=1000) is 0, so we see that the interaction term $temp*location$ is significant, proving that our hypothesis was right. 
 
-### Question 2: Are the betas from our model that had low p-values insignificant when tested as a group?
+### Question 2: Are the covariates from our model that had low p-values insignificant when tested as a group?
 ``` {r}
 # Get the indices of the insignificant coefficients listed previously
 coefficients = names(bic_step_both.model$coefficients)
@@ -603,11 +620,21 @@ L_insig_coeffs = matrix(0, nrow=8, ncol=97)
 for (i in 1:8) {
   L_insig_coeffs[i, indices[i]] = 1
 }
-p_value_insig_coeffs = get_p_value_from_bootstrap(bic_step_both.model, L_insig_coeffs, matrix(rep(0, 8), ncol=1))
+test2_bootstrap_res = run_bootstrap(bic_step_both.model, L_insig_coeffs, matrix(rep(0, 8), ncol=1))
+
+# Visualize bootstrap
+test2_vect_of_f_scores = test2_bootstrap_res$vect
+
+ggplot(data.frame(F_scores=test2_vect_of_f_scores), aes(x=F_scores)) + geom_histogram() + geom_vline(xintercept=test2_bootstrap_res$f_score_to_test,color="red")
+
+# Display p value
+p_value_insig_coeffs = test2_bootstrap_res$p
 disp(paste("P value of F-test all insignficant betas = 0:", as.character(p_value_insig_coeffs)))
 ```
-
+For this test, $F(\hat{\beta}, \beta_0)$ = 1.792518, but the p value from bootstrap is also 0.
 Seeing that the p value from bootstrap is 0, we can also conclude that the the beta values $\beta_{hr21}$, $\beta_{hr22}$, $\beta_{seasonsummer}$, $\beta_{temp:locationwashington_dc}$, $\beta_{temp:seasonsummer}$, $\beta_{temp:seasonwinter}$, $\beta_{temp:hr18}$, $\beta_{temp:hr23}$ are significant as a group and reject the null hypothesis that all these coefficients are actually 0.
+
+Furthermore, it is interesting to see the difference in p-value (and conclusion) one can obtain via running a nonparametric bootstrap F-test. Should we have assumed that our log-ols model satisfied the canonical assumptions of normal, homoscedastic errors, we would have computed our p-value as $P(F_{8,43456} > 1.792518) = 0.07335$, and we would not have been able to reject the null hypothesis at $alpha = 0.05$.
 
 # Conclusion
 It is not surprising that the negative binomial distribution is a better fit than the ols model, but it is somewhat surprising that our data follows the log normal distribution more closely than both the poisson and negative binomial distributions. However, this is still reasonable since the log normal model also always gives us non-negative values, unlike the ols model.
